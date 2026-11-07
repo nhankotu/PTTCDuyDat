@@ -1,0 +1,18 @@
+# Environment variables
+.env
+
+# Build outputs
+bin/
+obj/
+dist/
+node_modules/
+
+# Logs & temp
+*.log
+.vs/
+.vscode/
+.idea/
+
+# OS files
+Thumbs.db
+.DS_Store
