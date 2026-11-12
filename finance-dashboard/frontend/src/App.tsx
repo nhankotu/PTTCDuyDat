@@ -73,6 +73,7 @@ export default function App() {
   const [dateError, setDateError] = useState<string | null>(null);
   const [dateCoverage, setDateCoverage] = useState<DateCoverageResponse | null>(null);
   const [autoAdjustedNotice, setAutoAdjustedNotice] = useState<string | null>(null);
+  const [filterModalTab, setFilterModalTab] = useState<'all' | 'time' | 'scope' | null>(null);
   const hasAutoAdjustedRef = useRef(false);
   const requestId = useRef(0);
   const selectionRequest = useRef(0);
@@ -249,6 +250,36 @@ export default function App() {
     });
     return () => { active = false; };
   }, [currentUser, selectedDatasetId, reportView.viewEmployeeId, reportView.view, refreshKey]);
+
+  useEffect(() => {
+    const isReportingTab = ['kpi_v1', 'trend_v1', 'contracts_v1', 'stocks_v1', 'org_tree_v1'].includes(activeTab);
+    if (!currentUser || !isReportingTab) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setFilterModalTab(null);
+        return;
+      }
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName?.toUpperCase();
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || target?.isContentEditable) return;
+
+      const k = e.key.toLowerCase();
+      if (k === 'f') {
+        e.preventDefault();
+        setFilterModalTab(prev => (prev ? null : 'all'));
+      } else if (k === 't') {
+        e.preventDefault();
+        setFilterModalTab(prev => (prev === 'time' ? null : 'time'));
+      } else if (k === 's') {
+        e.preventDefault();
+        setFilterModalTab(prev => (prev === 'scope' ? null : 'scope'));
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [currentUser, activeTab]);
 
   if (!currentUser) {
     return (
@@ -428,176 +459,9 @@ export default function App() {
           {isAdmin && <><option value="users">Người dùng</option><option value="permissions">Phân quyền</option></>}
         </select>
       </label>
-      {/* 2. Global Filter & Analytics Control Bar (Chỉ hiển thị ở các tab phân tích tài chính) */}
-      {['kpi_v1', 'trend_v1', 'contracts_v1', 'stocks_v1', 'org_tree_v1'].includes(activeTab) && (
-      <div className="bg-white border-b border-slate-200/90 px-6 py-3 shadow-xs">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs">
-          {/* Quick Date Presets */}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1">Kỳ:</span>
-            <button
-              onClick={() => applyPreset('today')}
-              className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
-            >
-              Hôm nay
-            </button>
-            <button
-              onClick={() => applyPreset('this_month')}
-              className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
-            >
-              Tháng này
-            </button>
-            <button
-              onClick={() => applyPreset('last_month')}
-              className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
-            >
-              Tháng trước
-            </button>
-            <button
-              onClick={() => applyPreset('this_quarter')}
-              className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
-            >
-              Quý này
-            </button>
-            <button
-              onClick={() => applyPreset('this_year')}
-              className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition cursor-pointer"
-            >
-              Cả năm
-            </button>
-            {dateCoverage && dateCoverage.months.length > 0 && (
-              <>
-                <button
-                  onClick={() => {
-                    const latest = dateCoverage.months[0];
-                    const targetAsOf = dateCoverage.maxDate && dateCoverage.maxDate < latest.toDate ? dateCoverage.maxDate : latest.toDate;
-                    applyDateRangeNow(latest.fromDate, latest.toDate, targetAsOf);
-                  }}
-                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
-                  title={`Nhảy nhanh tới tháng ${dateCoverage.months[0].label} (${dateCoverage.months[0].contractCount} HĐ)`}
-                >
-                  Tháng có DL gần nhất ({dateCoverage.months[0].label})
-                </button>
-                {dateCoverage.minDate && dateCoverage.maxDate && (
-                  <button
-                    onClick={() => applyDateRangeNow(dateCoverage.minDate!, dateCoverage.maxDate!, dateCoverage.maxDate!)}
-                    className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 transition cursor-pointer"
-                    title={`Xem toàn bộ từ ${dateCoverage.minDate} đến ${dateCoverage.maxDate}`}
-                  >
-                    Toàn bộ DL
-                  </button>
-                )}
-                <select
-                  aria-label="Chọn nhanh tháng có dữ liệu"
-                  value={dateCoverage.months.find(m => m.fromDate === fromDate && m.toDate === toDate)?.monthKey || ''}
-                  onChange={(e) => {
-                    const m = dateCoverage.months.find(x => x.monthKey === e.target.value);
-                    if (m) {
-                      const targetAsOf = dateCoverage.maxDate && dateCoverage.maxDate < m.toDate ? dateCoverage.maxDate : m.toDate;
-                      applyDateRangeNow(m.fromDate, m.toDate, targetAsOf);
-                    }
-                  }}
-                  className="border border-emerald-200 bg-emerald-50/50 text-emerald-900 rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                >
-                  <option value="">Tháng có DL ({dateCoverage.months.length})…</option>
-                  {dateCoverage.months.map(m => (
-                    <option key={m.monthKey} value={m.monthKey}>
-                      Tháng {m.label} ({m.contractCount} HĐ)
-                    </option>
-                  ))}
-                </select>
-              </>
-            )}
-          </div>
-
-          {/* Date Pickers */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex flex-wrap items-center gap-2 bg-slate-50 border border-slate-200/90 rounded-xl px-3 py-2 max-w-full">
-              <span className="text-slate-500 text-xs">📅</span>
-              <span className="font-semibold text-slate-700 text-xs basis-full sm:basis-auto">Ngày ký trong kỳ:</span>
-              <input
-                type="date" aria-label="Từ ngày"
-                value={fromDate}
-                onChange={(e) => setFromDate(e.target.value)}
-                className="bg-white border border-slate-200 rounded-md px-2 py-0.5 text-xs text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-              <span className="text-slate-400 font-bold">➔</span>
-              <input
-                type="date" aria-label="Đến ngày"
-                value={toDate}
-                onChange={(e) => {
-                  setToDate(e.target.value);
-                  setAsOfDate(e.target.value);
-                }}
-                className="bg-white border border-slate-200 rounded-md px-2 py-0.5 text-xs text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-              />
-            </div>
-
-            <div className="flex items-center gap-2 bg-emerald-50/70 border border-emerald-200 rounded-xl px-3 py-1">
-              <span className="text-emerald-700 text-xs">🏦</span>
-              <span className="font-bold text-emerald-900 text-xs">Chốt số dư:</span>
-              <input
-                type="date" aria-label="Ngày chốt số dư"
-                value={asOfDate}
-                onChange={(e) => setAsOfDate(e.target.value)}
-                className="bg-white border border-emerald-200 rounded-md px-2 py-0.5 text-xs text-emerald-950 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-              />
-            </div>
-
-            {/* Dataset Selector */}
-            <div className="flex items-center gap-1.5">
-              <select
-                value={selectedDatasetId}
-                onChange={(e) => setSelectedDatasetId(e.target.value)}
-                className="border border-slate-300 bg-white text-slate-800 rounded-xl px-3 py-1.5 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-500/20 shadow-2xs"
-              >
-                <option value="">Dữ liệu hiện tại</option>
-                {datasets.map((d: any) => (
-                  <option key={d.id} value={d.id}>
-                    📦 {d.datasetCode} - {d.title} (Chốt: {d.cutoffDate})
-                  </option>
-                ))}
-              </select>
-
-              <button
-                onClick={applyFilters}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl px-3.5 py-1.5 font-bold shadow-xs transition-all flex items-center gap-1 cursor-pointer"
-              >
-                {kpiLoading ? (
-                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <span>🔄</span>
-                )}
-                <span>Áp dụng</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-      )}
-
       {/* 3. Main Content Area */}
-      <main className="flex-1 max-w-[1600px] mx-auto w-full p-4 sm:p-6 space-y-6">
+      <main className="flex-1 max-w-[1600px] mx-auto w-full p-4 sm:p-6 pb-24 space-y-5">
         {!['users', 'permissions'].includes(activeTab) && <>
-          <UnifiedFilterScopePanel
-            nodes={scopeNodes}
-            value={reportView}
-            onChange={changeReportView}
-            loading={scopeLoading}
-            error={scopeError}
-            onRetry={() => setScopeRevision(n => n + 1)}
-            defaultLabel={isAdmin ? 'Toàn bộ phạm vi được cấp' : `Phạm vi của tôi${currentUser.scopeNodeName || currentUser.branchAccess ? ` · ${currentUser.scopeNodeName || currentUser.branchAccess}` : ''}`}
-            showDimensions={activeTab !== 'stocks_v1' && activeTab !== 'org_tree_v1'}
-            dimensions={dimensions}
-            appliedDimensions={appliedDimensions}
-            onChangeDimensions={setDimensions}
-            datasetId={applied.datasetId || undefined}
-            toDate={applied.toDate}
-            showSavedViews={activeTab !== 'org_tree_v1'}
-            username={currentUser.username}
-            savedReportValue={{ ...applied, dimensions: appliedDimensions, reportView }}
-            onLoadSavedView={loadSavedView}
-          />
           {JSON.stringify(dimensions) !== JSON.stringify(appliedDimensions) && (
             <p role="status" className="text-xs sm:text-sm text-amber-800 font-medium">
               ⚠️ Điều kiện nghiệp vụ đã thay đổi. Bấm “Áp dụng” để cập nhật.
@@ -709,6 +573,294 @@ export default function App() {
           <PermissionsPage />
         )}
       </main>
+
+      {/* 3b. Floating Bottom Taskbar Dock (Phím tắt: F / T / S / Esc) */}
+      {['kpi_v1', 'trend_v1', 'contracts_v1', 'stocks_v1', 'org_tree_v1'].includes(activeTab) && (() => {
+        const selectedNode = scopeNodes.find(n => n.id === reportView.viewEmployeeId);
+        const dimCount = Object.values(appliedDimensions).reduce((sum, list) => sum + list.length, 0);
+        const hasPending =
+          fromDate !== applied.fromDate ||
+          toDate !== applied.toDate ||
+          asOfDate !== applied.asOfDate ||
+          selectedDatasetId !== applied.datasetId ||
+          JSON.stringify(dimensions) !== JSON.stringify(appliedDimensions);
+
+        return (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 max-w-[96vw]">
+            <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-slate-900/95 text-white shadow-2xl border border-slate-700/80 backdrop-blur-md text-xs">
+              <button
+                type="button"
+                onClick={() => setFilterModalTab('time')}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold transition cursor-pointer"
+                title="Mở cài đặt Thời gian & Bản chốt (Phím T)"
+              >
+                <span>📅</span>
+                <span className="truncate max-w-[170px] sm:max-w-none">{applied.fromDate} → {applied.toDate}</span>
+                <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono bg-slate-700 text-slate-300 rounded">T</kbd>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFilterModalTab('scope')}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold transition cursor-pointer"
+                title="Mở cài đặt Phạm vi nhân sự & Sale HĐ (Phím S)"
+              >
+                <span>👥</span>
+                <span className="truncate max-w-[160px] sm:max-w-[220px]">
+                  {selectedNode
+                    ? `${selectedNode.label} (${selectedNode.source === 'CONTRACT' ? 'Sale HĐ' : reportView.view === 'subtree' ? 'Cả CN' : 'Cá nhân'})`
+                    : (isAdmin ? 'Toàn hệ thống' : 'Phạm vi của tôi')}
+                </span>
+                <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono bg-slate-700 text-slate-300 rounded">S</kbd>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFilterModalTab('all')}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition cursor-pointer shadow-xs"
+                title="Mở cửa sổ Setup Bộ lọc & Phạm vi đầy đủ (Phím F)"
+              >
+                <span>🎛️ Bộ lọc{dimCount > 0 ? ` (${dimCount})` : ''}</span>
+                <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono bg-blue-700 text-blue-100 rounded">F</kbd>
+              </button>
+
+              {hasPending && (
+                <button
+                  type="button"
+                  onClick={applyFilters}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition cursor-pointer animate-pulse"
+                >
+                  <span>🔄 Áp dụng</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setRefreshKey(n => n + 1)}
+                className="inline-flex items-center justify-center px-2 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition cursor-pointer"
+                title="Làm mới dữ liệu"
+                aria-label="Làm mới dữ liệu"
+              >
+                {kpiLoading ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : '↻'}
+              </button>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* 3c. Setup Modal for Time, Scope & Dimension Filters */}
+      {filterModalTab !== null && ['kpi_v1', 'trend_v1', 'contracts_v1', 'stocks_v1', 'org_tree_v1'].includes(activeTab) && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6"
+          onClick={() => setFilterModalTab(null)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Thiết lập Bộ lọc và Phạm vi"
+            className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-5xl max-h-[88vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="px-5 py-3.5 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-base font-extrabold text-slate-900">🎛️ Thiết lập Bộ lọc & Phạm vi</span>
+                <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setFilterModalTab('all')}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${filterModalTab === 'all' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                  >
+                    Tất cả (F)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterModalTab('time')}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${filterModalTab === 'time' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                  >
+                    Thời gian (T)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFilterModalTab('scope')}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${filterModalTab === 'scope' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                  >
+                    Nhân sự & Lọc (S)
+                  </button>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFilterModalTab(null)}
+                className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 transition cursor-pointer"
+              >
+                Đóng (Esc) ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto space-y-6">
+              {(filterModalTab === 'all' || filterModalTab === 'time') && (
+                <section className="space-y-3 bg-slate-50/70 border border-slate-200 rounded-2xl p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h3 className="font-bold text-sm sm:text-base text-slate-900">📅 1. Thời gian & Bản chốt dữ liệu</h3>
+                    {dateCoverage?.minDate && dateCoverage?.maxDate && (
+                      <span className="text-xs text-slate-500">
+                        Dữ liệu hiện có: <strong>{dateCoverage.minDate}</strong> → <strong>{dateCoverage.maxDate}</strong> ({dateCoverage.totalContracts} HĐ)
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Quick Date Presets */}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <button onClick={() => applyPreset('today')} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition cursor-pointer">Hôm nay</button>
+                    <button onClick={() => applyPreset('this_month')} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition cursor-pointer">Tháng này</button>
+                    <button onClick={() => applyPreset('last_month')} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition cursor-pointer">Tháng trước</button>
+                    <button onClick={() => applyPreset('this_quarter')} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition cursor-pointer">Quý này</button>
+                    <button onClick={() => applyPreset('this_year')} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition cursor-pointer">Cả năm</button>
+                    {dateCoverage && dateCoverage.months.length > 0 && (
+                      <>
+                        <button
+                          onClick={() => {
+                            const latest = dateCoverage.months[0];
+                            const targetAsOf = dateCoverage.maxDate && dateCoverage.maxDate < latest.toDate ? dateCoverage.maxDate : latest.toDate;
+                            applyDateRangeNow(latest.fromDate, latest.toDate, targetAsOf);
+                          }}
+                          className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
+                        >
+                          Tháng có DL gần nhất ({dateCoverage.months[0].label})
+                        </button>
+                        {dateCoverage.minDate && dateCoverage.maxDate && (
+                          <button
+                            onClick={() => applyDateRangeNow(dateCoverage.minDate!, dateCoverage.maxDate!, dateCoverage.maxDate!)}
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 transition cursor-pointer"
+                          >
+                            Toàn bộ DL
+                          </button>
+                        )}
+                        <select
+                          aria-label="Chọn nhanh tháng có dữ liệu"
+                          value={dateCoverage.months.find(m => m.fromDate === fromDate && m.toDate === toDate)?.monthKey || ''}
+                          onChange={(e) => {
+                            const m = dateCoverage.months.find(x => x.monthKey === e.target.value);
+                            if (m) {
+                              const targetAsOf = dateCoverage.maxDate && dateCoverage.maxDate < m.toDate ? dateCoverage.maxDate : m.toDate;
+                              applyDateRangeNow(m.fromDate, m.toDate, targetAsOf);
+                            }
+                          }}
+                          className="border border-emerald-200 bg-white text-emerald-900 rounded-lg px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                        >
+                          <option value="">Tháng có DL ({dateCoverage.months.length})…</option>
+                          {dateCoverage.months.map(m => (
+                            <option key={m.monthKey} value={m.monthKey}>
+                              Tháng {m.label} ({m.contractCount} HĐ)
+                            </option>
+                          ))}
+                        </select>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Date Pickers + Dataset */}
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2">
+                      <span className="font-semibold text-slate-700 text-xs">Ngày ký trong kỳ:</span>
+                      <input
+                        type="date" aria-label="Từ ngày"
+                        value={fromDate}
+                        onChange={(e) => setFromDate(e.target.value)}
+                        className="bg-slate-50 border border-slate-200 rounded-md px-2 py-1 text-xs text-slate-800 font-semibold"
+                      />
+                      <span className="text-slate-400 font-bold">➔</span>
+                      <input
+                        type="date" aria-label="Đến ngày"
+                        value={toDate}
+                        onChange={(e) => {
+                          setToDate(e.target.value);
+                          setAsOfDate(e.target.value);
+                        }}
+                        className="bg-slate-50 border border-slate-200 rounded-md px-2 py-1 text-xs text-slate-800 font-semibold"
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2 bg-emerald-50/70 border border-emerald-200 rounded-xl px-3 py-2">
+                      <span className="font-bold text-emerald-900 text-xs">🏦 Chốt số dư:</span>
+                      <input
+                        type="date" aria-label="Ngày chốt số dư"
+                        value={asOfDate}
+                        onChange={(e) => setAsOfDate(e.target.value)}
+                        className="bg-white border border-emerald-200 rounded-md px-2 py-1 text-xs text-emerald-950 font-bold"
+                      />
+                    </div>
+
+                    <select
+                      value={selectedDatasetId}
+                      onChange={(e) => setSelectedDatasetId(e.target.value)}
+                      className="border border-slate-300 bg-white text-slate-800 rounded-xl px-3 py-2 text-xs font-semibold"
+                    >
+                      <option value="">Dữ liệu hiện tại</option>
+                      {datasets.map((d: any) => (
+                        <option key={d.id} value={d.id}>
+                          📦 {d.datasetCode} - {d.title} (Chốt: {d.cutoffDate})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </section>
+              )}
+
+              {(filterModalTab === 'all' || filterModalTab === 'scope') && (
+                <UnifiedFilterScopePanel
+                  embedded
+                  nodes={scopeNodes}
+                  value={reportView}
+                  onChange={changeReportView}
+                  loading={scopeLoading}
+                  error={scopeError}
+                  onRetry={() => setScopeRevision(n => n + 1)}
+                  defaultLabel={isAdmin ? 'Toàn bộ phạm vi được cấp' : `Phạm vi của tôi${currentUser.scopeNodeName || currentUser.branchAccess ? ` · ${currentUser.scopeNodeName || currentUser.branchAccess}` : ''}`}
+                  showDimensions={activeTab !== 'stocks_v1' && activeTab !== 'org_tree_v1'}
+                  dimensions={dimensions}
+                  appliedDimensions={appliedDimensions}
+                  onChangeDimensions={setDimensions}
+                  datasetId={applied.datasetId || undefined}
+                  toDate={applied.toDate}
+                  showSavedViews={activeTab !== 'org_tree_v1'}
+                  username={currentUser.username}
+                  savedReportValue={{ ...applied, dimensions: appliedDimensions, reportView }}
+                  onLoadSavedView={loadSavedView}
+                />
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
+              <span className="text-xs text-slate-500 hidden sm:inline">
+                Phím tắt: <kbd className="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-[11px]">F</kbd> Bộ lọc · <kbd className="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-[11px]">T</kbd> Thời gian · <kbd className="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-[11px]">S</kbd> Nhân sự · <kbd className="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-[11px]">Esc</kbd> Đóng
+              </span>
+              <div className="flex items-center gap-2 ml-auto">
+                <button
+                  type="button"
+                  onClick={() => setFilterModalTab(null)}
+                  className="px-3.5 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold transition cursor-pointer"
+                >
+                  Đóng
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    applyFilters();
+                    setFilterModalTab(null);
+                  }}
+                  className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                >
+                  🔄 Áp dụng & Đóng
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 4. Import 5 Nguồn Modal */}
       {isAdmin && (

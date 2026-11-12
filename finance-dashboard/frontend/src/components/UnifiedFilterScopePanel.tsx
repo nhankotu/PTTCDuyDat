@@ -27,6 +27,7 @@ interface Props {
   username: string;
   savedReportValue: SavedReportValue;
   onLoadSavedView: (value: SavedReportValue) => void;
+  embedded?: boolean;
 }
 
 export function UnifiedFilterScopePanel({
@@ -46,7 +47,8 @@ export function UnifiedFilterScopePanel({
   showSavedViews = true,
   username,
   savedReportValue,
-  onLoadSavedView
+  onLoadSavedView,
+  embedded = false
 }: Props) {
   // Collapsible state with localStorage persistence
   const [isExpanded, setIsExpanded] = useState<boolean>(() => {
@@ -163,9 +165,12 @@ export function UnifiedFilterScopePanel({
     return Object.values(appliedDimensions).reduce((sum, list) => sum + list.length, 0);
   }, [appliedDimensions]);
 
+  const showBody = embedded || isExpanded;
+
   return (
-    <section aria-label="Phạm vi và bộ lọc báo cáo" className="bg-white border border-slate-200 rounded-2xl shadow-sm transition-all duration-200 overflow-hidden">
-      {/* 1. Header Bar: Always visible, summary & controls */}
+    <section aria-label="Phạm vi và bộ lọc báo cáo" className={embedded ? 'space-y-5' : 'bg-white border border-slate-200 rounded-2xl shadow-sm transition-all duration-200 overflow-hidden'}>
+      {/* 1. Header Bar: Always visible when not embedded */}
+      {!embedded && (
       <div className="p-3 sm:p-4 flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-slate-50/80 via-white to-slate-50/40">
         <div className="flex flex-wrap items-center gap-2 sm:gap-3 min-w-0">
           <div className="flex items-center gap-2 text-slate-900 font-bold text-sm sm:text-base">
@@ -238,10 +243,11 @@ export function UnifiedFilterScopePanel({
           </button>
         </div>
       </div>
+      )}
 
       {/* 2. Collapsible Expanded Body */}
-      {isExpanded && (
-        <div className="border-t border-slate-200 p-4 sm:p-5 space-y-5 bg-white">
+      {showBody && (
+        <div className={embedded ? 'space-y-5 bg-white' : 'border-t border-slate-200 p-4 sm:p-5 space-y-5 bg-white'}>
           {/* Section A: Phạm vi nhân sự / đơn vị */}
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
