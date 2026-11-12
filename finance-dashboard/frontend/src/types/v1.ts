@@ -181,6 +181,7 @@ export interface ViewScopeNode {
   canViewRevenue: boolean;
   canViewBalance: boolean;
   canViewSubtree: boolean;
+  source?: 'HR' | 'CONTRACT';
 }
 
 export interface DimensionFilters {

@@ -56,7 +56,16 @@ export function ScopeSelector({ nodes, value, onChange, loading, error, defaultL
         }} className="mt-1 w-full border border-slate-300 rounded-lg p-2 text-slate-900 min-h-10 disabled:opacity-60">
           <option value="">{loading ? 'Đang tải phạm vi được cấp…' : defaultLabel}</option>
           {selected && !matches.some(n => n.id === selected.id) && <option value={selected.id}>{selected.label} [{selected.position}]</option>}
-          {matches.map(n => <option key={n.id} value={n.id}>{'　'.repeat(n.depth)}{n.depth > 0 ? '↳ ' : ''}{n.label} [{n.position}] · {n.department || n.branch || n.id}{!n.canViewSubtree ? ' · Cá nhân' : ''}</option>)}
+          {matches.filter(n => n.source !== 'CONTRACT').length > 0 && (
+            <optgroup label="── Cây nhân sự (HR) ──">
+              {matches.filter(n => n.source !== 'CONTRACT').map(n => <option key={n.id} value={n.id}>{'　'.repeat(n.depth)}{n.depth > 0 ? '↳ ' : ''}{n.label} [{n.position}] · {n.department || n.branch || n.id}{!n.canViewSubtree ? ' · Cá nhân' : ''}</option>)}
+            </optgroup>
+          )}
+          {matches.filter(n => n.source === 'CONTRACT').length > 0 && (
+            <optgroup label="── Sale HĐ (Tự nhận diện · Chỉ cá nhân) ──">
+              {matches.filter(n => n.source === 'CONTRACT').map(n => <option key={n.id} value={n.id}>{n.label} [Sale HĐ] · Mã: {n.id} · Chỉ cá nhân</option>)}
+            </optgroup>
+          )}
         </select>
       </label>
       <label className="text-sm text-slate-600">Phạm vi thống kê

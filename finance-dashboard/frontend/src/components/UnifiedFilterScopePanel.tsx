@@ -71,6 +71,9 @@ export function UnifiedFilterScopePanel({
   };
 
   const [search, setSearch] = useState('');
+  const [sourceFilter, setSourceFilter] = useState<'ALL' | 'HR' | 'CONTRACT'>('ALL');
+  const [positionFilter, setPositionFilter] = useState<string>('ALL');
+  const [branchFilter, setBranchFilter] = useState<string>('ALL');
   const selected = nodes.find(n => n.id === value.viewEmployeeId);
 
   const path = useMemo(() => {
@@ -102,9 +105,59 @@ export function UnifiedFilterScopePanel({
     return result;
   }, [nodes]);
 
-  const matches = ordered.filter(n =>
-    normalize(`${n.id} ${n.label} ${n.position} ${n.branch || ''} ${n.department || ''}`).includes(normalize(search))
-  );
+  const hrCount = useMemo(() => ordered.filter(n => n.source !== 'CONTRACT').length, [ordered]);
+  const contractCount = useMemo(() => ordered.filter(n => n.source === 'CONTRACT').length, [ordered]);
+
+  const sourceScopedNodes = useMemo(() => ordered.filter(n => {
+    const nodeSource = n.source === 'CONTRACT' ? 'CONTRACT' : 'HR';
+    return sourceFilter === 'ALL' || nodeSource === sourceFilter;
+  }), [ordered, sourceFilter]);
+
+  const positionOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const n of sourceScopedNodes) {
+      const pos = (n.position || '').trim();
+      if (pos) counts.set(pos, (counts.get(pos) ?? 0) + 1);
+    }
+    const rank = (p: string) => {
+      const u = p.toUpperCase();
+      if (u.includes('GĐCN') || u.includes('GDCN')) return 0;
+      if (u.includes('TPKD')) return 1;
+      if (u.includes('CVKD')) return 2;
+      if (u.includes('SALE HĐ')) return 3;
+      return 4;
+    };
+    return Array.from(counts.entries()).sort((a, b) => rank(a[0]) - rank(b[0]) || a[0].localeCompare(b[0], 'vi'));
+  }, [sourceScopedNodes]);
+
+  const branchOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const n of sourceScopedNodes) {
+      const br = (n.branch || '').trim();
+      if (br) counts.set(br, (counts.get(br) ?? 0) + 1);
+    }
+    return Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0], 'vi'));
+  }, [sourceScopedNodes]);
+
+  useEffect(() => {
+    if (positionFilter !== 'ALL' && !positionOptions.some(([pos]) => pos === positionFilter)) {
+      setPositionFilter('ALL');
+    }
+  }, [positionFilter, positionOptions]);
+
+  useEffect(() => {
+    if (branchFilter !== 'ALL' && !branchOptions.some(([br]) => br === branchFilter)) {
+      setBranchFilter('ALL');
+    }
+  }, [branchFilter, branchOptions]);
+
+  const matches = sourceScopedNodes.filter(n => {
+    if (positionFilter !== 'ALL' && (n.position || '').trim() !== positionFilter) return false;
+    if (branchFilter !== 'ALL' && (n.branch || '').trim() !== branchFilter) return false;
+    return normalize(`${n.id} ${n.label} ${n.position} ${n.branch || ''} ${n.department || ''}`).includes(normalize(search));
+  });
+  const hrMatches = matches.filter(n => n.source !== 'CONTRACT');
+  const contractMatches = matches.filter(n => n.source === 'CONTRACT');
 
   const activeFilterCount = useMemo(() => {
     return Object.values(appliedDimensions).reduce((sum, list) => sum + list.length, 0);
@@ -130,7 +183,7 @@ export function UnifiedFilterScopePanel({
             >
               <span className="w-2 h-2 rounded-full bg-blue-600 shrink-0"></span>
               <span className="truncate">
-                Đang xem: <strong>{selected.label}</strong> ({value.view === 'subtree' ? 'Cả cấp dưới' : 'Chỉ cá nhân'})
+                Đang xem: <strong>{selected.label}</strong> ({selected.source === 'CONTRACT' ? 'Sale HĐ · Chỉ cá nhân' : value.view === 'subtree' ? 'Cây nhân sự · Cả cấp dưới/CN' : 'Cây nhân sự · Chỉ cá nhân'})
               </span>
             </span>
           ) : (
@@ -138,6 +191,18 @@ export function UnifiedFilterScopePanel({
               <span className="w-1.5 h-1.5 rounded-full bg-slate-400"></span>
               <span className="truncate">{defaultLabel}</span>
             </span>
+          )}
+
+          {/* Quick toggle between Branch/Subtree vs Personal when HR node has hierarchy */}
+          {selected && selected.canViewSubtree && (
+            <button
+              type="button"
+              onClick={() => onChange({ ...value, view: value.view === 'subtree' ? 'self' : 'subtree' })}
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition-colors cursor-pointer"
+              title="Chuyển nhanh giữa Doanh số chi nhánh/cấp dưới và Doanh số cá nhân"
+            >
+              <span>{value.view === 'subtree' ? 'Đang xem: Cả CN/cấp dưới ⇄ Cá nhân' : 'Đang xem: Cá nhân ⇄ Cả CN/cấp dưới'}</span>
+            </button>
           )}
 
           {/* Dimension Filter Badge */}
@@ -179,10 +244,107 @@ export function UnifiedFilterScopePanel({
         <div className="border-t border-slate-200 p-4 sm:p-5 space-y-5 bg-white">
           {/* Section A: Phạm vi nhân sự / đơn vị */}
           <div className="space-y-3">
-            <div className="flex items-center gap-2 text-slate-900">
-              <Users size={18} className="text-blue-600" />
-              <h3 className="font-bold text-sm sm:text-base">1. Phạm vi đang xem</h3>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-slate-900">
+                <Users size={18} className="text-blue-600" />
+                <h3 className="font-bold text-sm sm:text-base">1. Phạm vi đang xem</h3>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Phân loại nguồn nhân sự">
+                <button
+                  type="button"
+                  onClick={() => setSourceFilter('ALL')}
+                  className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors cursor-pointer ${
+                    sourceFilter === 'ALL'
+                      ? 'bg-slate-800 text-white border-slate-800'
+                      : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  Tất cả ({ordered.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSourceFilter('HR')}
+                  className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors cursor-pointer ${
+                    sourceFilter === 'HR'
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-blue-50/60 text-blue-700 border-blue-200 hover:bg-blue-100/70'
+                  }`}
+                >
+                  Cây nhân sự ({hrCount})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSourceFilter('CONTRACT')}
+                  className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors cursor-pointer ${
+                    sourceFilter === 'CONTRACT'
+                      ? 'bg-emerald-600 text-white border-emerald-600'
+                      : 'bg-emerald-50/60 text-emerald-700 border-emerald-200 hover:bg-emerald-100/70'
+                  }`}
+                >
+                  Sale HĐ ({contractCount})
+                </button>
+              </div>
             </div>
+
+            {(positionOptions.length > 1 || branchOptions.length > 0 || search.trim() !== '' || sourceFilter !== 'ALL') && (
+              <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50/80 border border-slate-200/80 rounded-xl px-3 py-2">
+                <div className="flex flex-wrap items-center gap-3">
+                  {positionOptions.length > 1 && (
+                    <label className="flex items-center gap-2 text-xs text-slate-600">
+                      <span className="font-semibold text-slate-700">Chức vụ:</span>
+                      <select
+                        aria-label="Lọc theo chức vụ"
+                        value={positionFilter}
+                        onChange={e => setPositionFilter(e.target.value)}
+                        className="border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="ALL">Tất cả chức vụ ({sourceScopedNodes.length})</option>
+                        {positionOptions.map(([pos, count]) => (
+                          <option key={pos} value={pos}>{pos} ({count})</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+
+                  {branchOptions.length > 0 && (
+                    <label className="flex items-center gap-2 text-xs text-slate-600">
+                      <span className="font-semibold text-slate-700">Chi nhánh:</span>
+                      <select
+                        aria-label="Lọc theo chi nhánh"
+                        value={branchFilter}
+                        onChange={e => setBranchFilter(e.target.value)}
+                        className="border border-slate-300 rounded-lg px-2.5 py-1 text-xs text-slate-900 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="ALL">Tất cả chi nhánh</option>
+                        {branchOptions.map(([br, count]) => (
+                          <option key={br} value={br}>{br} ({count})</option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+
+                  <span className="text-xs text-slate-500">
+                    Khớp <strong>{matches.length}</strong> / {ordered.length} nhân sự
+                  </span>
+                </div>
+
+                {(search.trim() !== '' || sourceFilter !== 'ALL' || positionFilter !== 'ALL' || branchFilter !== 'ALL') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSearch('');
+                      setSourceFilter('ALL');
+                      setPositionFilter('ALL');
+                      setBranchFilter('ALL');
+                    }}
+                    className="text-xs font-semibold text-rose-600 hover:underline cursor-pointer"
+                  >
+                    Đặt lại lọc nhân sự
+                  </button>
+                )}
+              </div>
+            )}
 
             <div className="grid gap-3 md:grid-cols-[1fr_2fr_1fr]">
               <label className="text-xs sm:text-sm text-slate-600">
@@ -219,14 +381,27 @@ export function UnifiedFilterScopePanel({
                       {selected.label} [{selected.position}]
                     </option>
                   )}
-                  {matches.map(n => (
-                    <option key={n.id} value={n.id}>
-                      {'　'.repeat(n.depth)}
-                      {n.depth > 0 ? '↳ ' : ''}
-                      {n.label} [{n.position}] · {n.department || n.branch || n.id}
-                      {!n.canViewSubtree ? ' · Cá nhân' : ''}
-                    </option>
-                  ))}
+                  {hrMatches.length > 0 && (
+                    <optgroup label="── Cây nhân sự (Có cấp bậc / Chi nhánh) ──">
+                      {hrMatches.map(n => (
+                        <option key={n.id} value={n.id}>
+                          {'　'.repeat(n.depth)}
+                          {n.depth > 0 ? '↳ ' : ''}
+                          {n.label} [{n.position}] · {n.department || n.branch || n.id}
+                          {!n.canViewSubtree ? ' · Chỉ cá nhân' : ''}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {contractMatches.length > 0 && (
+                    <optgroup label="── Sale gắn với hợp đồng (Tự nhận diện · Chỉ cá nhân) ──">
+                      {contractMatches.map(n => (
+                        <option key={n.id} value={n.id}>
+                          {n.label} [Sale HĐ] · Mã: {n.id} · Chỉ cá nhân
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
                 </select>
               </label>
 
@@ -239,8 +414,8 @@ export function UnifiedFilterScopePanel({
                   onChange={e => onChange({ ...value, view: e.target.value as ReportView['view'] })}
                   className="mt-1 w-full border border-slate-300 rounded-lg p-2 text-sm text-slate-900 min-h-10 disabled:opacity-60 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="subtree">Gồm cả cấp dưới</option>
-                  <option value="self">Chỉ cá nhân</option>
+                  <option value="subtree">Doanh số chi nhánh / cấp dưới</option>
+                  <option value="self">Doanh số cá nhân</option>
                 </select>
               </label>
             </div>
@@ -253,11 +428,28 @@ export function UnifiedFilterScopePanel({
               <p role="status" className="rounded-lg bg-blue-50 px-3 py-2 text-xs sm:text-sm text-blue-900">
                 <strong>Đang xem: </strong>
                 {path || defaultLabel}
-                {selected ? ` — ${value.view === 'subtree' ? 'nhân sự và cây con trong quyền được cấp' : 'chỉ cá nhân'}` : ''}
+                {selected ? ` — ${selected.source === 'CONTRACT' ? 'Sale gắn với hợp đồng (chỉ doanh số & số dư cá nhân)' : value.view === 'subtree' ? 'Cây nhân sự (gồm cả chi nhánh / cấp dưới)' : 'Cây nhân sự (chỉ cá nhân)'}` : ''}
               </p>
             )}
 
-            {!loading && search && matches.length === 0 && (
+            {!loading && matches.length === 1 && matches[0].id !== value.viewEmployeeId && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => onChange({
+                    viewEmployeeId: matches[0].id,
+                    view: matches[0].canViewSubtree ? 'subtree' : 'self'
+                  })}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 px-3 py-1.5 text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  <span>Chọn nhanh kết quả duy nhất:</span>
+                  <strong>{matches[0].label}</strong>
+                  <span>[{matches[0].source === 'CONTRACT' ? 'Sale HĐ' : matches[0].position}]</span>
+                </button>
+              </div>
+            )}
+
+            {!loading && (search || positionFilter !== 'ALL' || branchFilter !== 'ALL' || sourceFilter !== 'ALL') && matches.length === 0 && (
               <p className="text-xs text-slate-500">Không có nhân sự phù hợp trong phạm vi được cấp.</p>
             )}
           </div>

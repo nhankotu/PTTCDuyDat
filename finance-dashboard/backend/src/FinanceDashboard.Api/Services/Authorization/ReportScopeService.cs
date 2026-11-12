@@ -17,6 +17,7 @@ public sealed class ReportScopeNode
     public bool CanViewRevenue { get; set; }
     public bool CanViewBalance { get; set; }
     public bool CanViewSubtree { get; set; }
+    public string Source { get; set; } = "HR";
 }
 
 public partial class DataAccessScopeService
@@ -83,19 +84,18 @@ public partial class DataAccessScopeService
             var batch = await connection.QueryFirstOrDefaultAsync<long?>(@"
                 SELECT source_batch_id FROM dataset_source_manifest
                 WHERE dataset_id = @datasetId AND source_type = 'EMPLOYEE' AND source_batch_id IS NOT NULL", new { datasetId });
+            var historical = new List<EmployeeHistory>();
             if (batch.HasValue)
             {
                 // Use the pinned source, never today's organization to reconstruct a published report.
-                var historical = (await connection.QueryAsync<EmployeeHistory>(@"
+                historical = (await connection.QueryAsync<EmployeeHistory>(@"
                     SELECT DISTINCT ON (employee_id) * FROM employee_history
                     WHERE batch_id = @batch AND valid_from <= @cutoff
                     ORDER BY employee_id, valid_from DESC, id DESC",
                     new { batch, cutoff = dataset.CutoffDate })).ToList();
-                if (historical.Count > 0)
-                    return DeduplicateEmployees(historical);
             }
 
-            // Fallback when dataset has no EMPLOYEE batch: derive flat sale identities from its contract/exception batches.
+            // Also include any contract/exception sale_id missing from the pinned EMPLOYEE batch as CONTRACT-derived sales.
             var derived = await connection.QueryAsync<EmployeeHistory>(@"
                 WITH manifest_batches AS (
                     SELECT source_batch_id FROM dataset_source_manifest
@@ -116,6 +116,7 @@ public partial class DataAccessScopeService
                     employee_id,
                     COALESCE(full_name, employee_id) AS full_name,
                     'CVKD' AS position,
+                    'CONTRACT' AS source_level,
                     NULL::varchar AS manager_employee_id,
                     NULL::varchar AS branch,
                     NULL::varchar AS department,
@@ -123,7 +124,7 @@ public partial class DataAccessScopeService
                 FROM contract_sales
                 ORDER BY UPPER(employee_id), (CASE WHEN full_name IS NOT NULL THEN 0 ELSE 1 END), prio ASC, id DESC;",
                 new { datasetId });
-            return DeduplicateEmployees(derived);
+            return DeduplicateEmployees(historical.Concat(derived));
         }
 
         // Current authoritative versions: employee_history -> legacy employee -> active contract/exception sales.
@@ -151,14 +152,14 @@ public partial class DataAccessScopeService
                 FROM contract_sales
                 ORDER BY UPPER(employee_id), (CASE WHEN full_name IS NOT NULL THEN 0 ELSE 1 END), prio ASC, id DESC
             )
-            SELECT employee_id, full_name, position, manager_employee_id, branch, department, region FROM current_history
+            SELECT employee_id, full_name, position, 'HR' AS source_level, manager_employee_id, branch, department, region FROM current_history
             UNION ALL
-            SELECT e.id, e.full_name, COALESCE(e.position, 'CVKD'), e.manager_id,
+            SELECT e.id, e.full_name, COALESCE(e.position, 'CVKD'), 'HR' AS source_level, e.manager_id,
                    e.branch_name, e.department_name, e.region_name
             FROM employee e WHERE NOT EXISTS (
                 SELECT 1 FROM current_history h WHERE UPPER(TRIM(h.employee_id)) = UPPER(TRIM(e.id)))
             UNION ALL
-            SELECT d.employee_id, d.full_name, 'CVKD', NULL::varchar, NULL::varchar, NULL::varchar, NULL::varchar
+            SELECT d.employee_id, d.full_name, 'CVKD', 'CONTRACT' AS source_level, NULL::varchar, NULL::varchar, NULL::varchar, NULL::varchar
             FROM derived_sales d
             WHERE NOT EXISTS (SELECT 1 FROM current_history h WHERE UPPER(TRIM(h.employee_id)) = UPPER(d.employee_id))
               AND NOT EXISTS (SELECT 1 FROM employee e WHERE UPPER(TRIM(e.id)) = UPPER(d.employee_id));");
@@ -251,15 +252,20 @@ public partial class DataAccessScopeService
         var employees = await GetScopeEmployeesAsync(datasetId);
         var allowed = employees.Where(e => scope.CanAccessAll || scope.RevenueScope.Contains(e.EmployeeId) || scope.BalanceScope.Contains(e.EmployeeId)).ToList();
         var ids = allowed.Select(e => e.EmployeeId).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        return allowed.Select(e => new ReportScopeNode
+        return allowed.Select(e =>
         {
-            Id = e.EmployeeId, Label = e.FullName, Position = e.Position,
-            ParentId = e.ManagerEmployeeId != null && ids.Contains(e.ManagerEmployeeId) ? e.ManagerEmployeeId : null,
-            Branch = e.Branch, Department = e.Department,
-            CanViewRevenue = scope.CanAccessAll || scope.RevenueScope.Contains(e.EmployeeId),
-            CanViewBalance = scope.CanAccessAll || scope.BalanceScope.Contains(e.EmployeeId),
-            CanViewSubtree = scope.CanAccessAll || (scope.CanViewSubordinates && scope.VerticalScope.Contains(e.EmployeeId))
-        }).OrderBy(e => e.Label).ToList();
+            var isContractDerived = string.Equals(e.SourceLevel, "CONTRACT", StringComparison.OrdinalIgnoreCase);
+            return new ReportScopeNode
+            {
+                Id = e.EmployeeId, Label = e.FullName, Position = isContractDerived ? "Sale HĐ" : e.Position,
+                ParentId = e.ManagerEmployeeId != null && ids.Contains(e.ManagerEmployeeId) ? e.ManagerEmployeeId : null,
+                Branch = e.Branch, Department = e.Department,
+                Source = isContractDerived ? "CONTRACT" : "HR",
+                CanViewRevenue = scope.CanAccessAll || scope.RevenueScope.Contains(e.EmployeeId),
+                CanViewBalance = scope.CanAccessAll || scope.BalanceScope.Contains(e.EmployeeId),
+                CanViewSubtree = !isContractDerived && (scope.CanAccessAll || (scope.CanViewSubordinates && scope.VerticalScope.Contains(e.EmployeeId)))
+            };
+        }).OrderBy(e => e.Source).ThenBy(e => e.Label).ToList();
     }
 
     public async Task<List<OrgTreeNodeDto>> GetOrgTreeAsync(int userId, DateOnly? asOfDate = null,
@@ -270,7 +276,8 @@ public partial class DataAccessScopeService
         var allowed = employees.Where(e => scope.CanAccessAll || scope.RevenueScope.Contains(e.EmployeeId) || scope.BalanceScope.Contains(e.EmployeeId)).ToList();
         var map = allowed.ToDictionary(e => e.EmployeeId, e => new OrgTreeNodeDto
         {
-            EmployeeId = e.EmployeeId, FullName = e.FullName, Position = e.Position,
+            EmployeeId = e.EmployeeId, FullName = e.FullName,
+            Position = string.Equals(e.SourceLevel, "CONTRACT", StringComparison.OrdinalIgnoreCase) ? "Sale HĐ" : e.Position,
             Department = e.Department, Branch = e.Branch, Region = e.Region,
             CanViewRevenue = scope.CanAccessAll || scope.RevenueScope.Contains(e.EmployeeId),
             CanViewBalance = scope.CanAccessAll || scope.BalanceScope.Contains(e.EmployeeId)
