@@ -204,29 +204,55 @@ export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datase
     ],
   };
 
+  const formatMoney = (valStr: string | null) => {
+    if (valStr === null) return 'Không có quyền';
+    const num = parseFloat(valStr);
+    if (isNaN(num)) return '0 đ';
+    return new Intl.NumberFormat('vi-VN', {
+      style: 'currency',
+      currency: 'VND',
+      maximumFractionDigits: 0,
+    }).format(num);
+  };
+
   // ECharts Donut Share Option
+  const donutData = pivotData
+    .filter(p => p.totalSales !== null)
+    .map((p) => ({
+      name: p.groupName || 'Chưa xác định',
+      value: parseFloat(p.totalSales || '0'),
+    }))
+    .filter((d) => d.value > 0)
+    .sort((a, b) => b.value - a.value);
+
   const donutOption = {
     tooltip: {
       trigger: 'item',
+      confine: true,
       backgroundColor: '#0f172a',
       borderColor: '#334155',
       textStyle: { color: '#f8fafc', fontSize: 12 },
-      formatter: '{b}: <br/><b>{c} đ</b> ({d}%)',
+      formatter: (params: { name: string; value: number; percent: number }) =>
+        `<div style="font-weight:700;margin-bottom:2px">${params.name}</div><div><b>${formatMoney(String(params.value))}</b> (${params.percent}%)</div>`,
     },
     legend: {
+      type: 'scroll',
       orient: 'horizontal',
       bottom: 0,
+      left: 'center',
       icon: 'circle',
       textStyle: { color: '#64748b', fontSize: 11 },
       itemWidth: 10,
       itemHeight: 10,
+      pageIconColor: '#4f46e5',
+      pageTextStyle: { color: '#64748b', fontSize: 11 },
     },
     series: [
       {
         name: 'Tỷ trọng Doanh số',
         type: 'pie',
-        radius: ['45%', '72%'],
-        center: ['50%', '45%'],
+        radius: ['44%', '70%'],
+        center: ['50%', '43%'],
         avoidLabelOverlap: true,
         itemStyle: {
           borderRadius: 6,
@@ -240,28 +266,14 @@ export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datase
         emphasis: {
           label: {
             show: true,
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: 'bold',
             formatter: '{b}\n{d}%',
           },
         },
-        data: pivotData.filter(p => p.totalSales !== null).map((p) => ({
-          name: p.groupName || 'Chưa xác định',
-          value: parseFloat(p.totalSales || '0'),
-        })),
+        data: donutData,
       },
     ],
-  };
-
-  const formatMoney = (valStr: string | null) => {
-    if (valStr === null) return 'Không có quyền';
-    const num = parseFloat(valStr);
-    if (isNaN(num)) return '0 đ';
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-      maximumFractionDigits: 0,
-    }).format(num);
   };
 
   return (
