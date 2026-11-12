@@ -357,25 +357,31 @@ public class ReportingEngineV2Service
         }
 
         string groupExpr;
+        string groupNameExpr;
         string joinExtra = "";
 
         switch (groupBy.ToLowerInvariant())
         {
             case "term":
                 groupExpr = "rc.term";
+                groupNameExpr = "rc.term";
                 break;
             case "channel":
                 groupExpr = "rc.channel";
+                groupNameExpr = "rc.channel";
                 break;
             case "sale":
                 groupExpr = "rc.effective_sale_id";
+                groupNameExpr = "COALESCE(NULLIF(MAX(CASE WHEN rc.effective_sale_id = rc.sale_id THEN NULLIF(TRIM(rc.sale_name), '') END), ''), rc.effective_sale_id)";
                 break;
             case "branch":
                 joinExtra = "LEFT JOIN employee_history emp ON emp.employee_id = rc.effective_sale_id AND emp.valid_from <= @AsOfDate AND emp.valid_to > @AsOfDate ";
                 groupExpr = "COALESCE(emp.branch, 'Chưa gán CN')";
+                groupNameExpr = groupExpr;
                 break;
             default:
                 groupExpr = "rc.product_name";
+                groupNameExpr = "rc.product_name";
                 break;
         }
 
@@ -406,6 +412,8 @@ public class ReportingEngineV2Service
                     c.product_name,
                     c.term,
                     c.channel,
+                    c.sale_id,
+                    c.sale_name,
                     COALESCE(e.new_sale_id, c.sale_id) AS effective_sale_id
                 FROM contract_appendix_version c
                 LEFT JOIN contract_exception_version e 
@@ -430,6 +438,7 @@ public class ReportingEngineV2Service
             )
             SELECT 
                 {groupExpr} AS GroupKey,
+                {groupNameExpr} AS GroupName,
                 BOOL_OR(@AllAccess OR rc.effective_sale_id = ANY(@RevScope)) AS HasRevenueAccess,
                 BOOL_OR(@AllAccess OR rc.effective_sale_id = ANY(@BalScope)) AS HasBalanceAccess,
                 COALESCE(SUM(CASE WHEN rc.sign_date >= @FromDate AND rc.sign_date <= @ToDate {revFilter}
@@ -468,11 +477,14 @@ public class ReportingEngineV2Service
             decimal sales = (decimal)r.totalsales;
             decimal bal = (decimal)r.totalbalance;
             string key = r.groupkey?.ToString() ?? "Chưa xác định";
+            string name = r.groupname?.ToString() ?? key;
 
             items.Add(new PivotItemDto
             {
                 GroupKey = key,
-                GroupName = key,
+                GroupName = groupBy.Equals("sale", StringComparison.OrdinalIgnoreCase) && !string.Equals(name, key, StringComparison.OrdinalIgnoreCase)
+                    ? $"{name} ({key})"
+                    : name,
                 TotalSales = (bool)r.hasrevenueaccess ? sales.ToString("F2", CultureInfo.InvariantCulture) : null,
                 TotalBalance = (bool)r.hasbalanceaccess ? bal.ToString("F2", CultureInfo.InvariantCulture) : null,
                 ContractCount = (bool)r.hasrevenueaccess ? (int)r.contractcount : null,

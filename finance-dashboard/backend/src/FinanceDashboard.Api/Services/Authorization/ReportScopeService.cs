@@ -41,6 +41,36 @@ public partial class DataAccessScopeService
         return user;
     }
 
+    /// <summary>
+    /// Normalizes and deduplicates employee records by trimmed EmployeeId (case-insensitive)
+    /// so downstream dictionary/tree builders never fail on duplicate or whitespace keys.
+    /// </summary>
+    public static List<EmployeeHistory> DeduplicateEmployees(IEnumerable<EmployeeHistory> raw)
+    {
+        var map = new Dictionary<string, EmployeeHistory>(StringComparer.OrdinalIgnoreCase);
+        foreach (var emp in raw)
+        {
+            var id = emp.EmployeeId?.Trim();
+            if (string.IsNullOrEmpty(id)) continue;
+
+            var name = string.IsNullOrWhiteSpace(emp.FullName) ? id : emp.FullName.Trim();
+            if (!map.TryGetValue(id, out var existing))
+            {
+                emp.EmployeeId = id;
+                emp.FullName = name;
+                emp.Position = string.IsNullOrWhiteSpace(emp.Position) ? "CVKD" : emp.Position.Trim();
+                emp.ManagerEmployeeId = string.IsNullOrWhiteSpace(emp.ManagerEmployeeId) ? null : emp.ManagerEmployeeId.Trim();
+                map[id] = emp;
+            }
+            else if (string.Equals(existing.FullName, existing.EmployeeId, StringComparison.OrdinalIgnoreCase)
+                     && !string.Equals(name, id, StringComparison.OrdinalIgnoreCase))
+            {
+                existing.FullName = name;
+            }
+        }
+        return map.Values.ToList();
+    }
+
     public async Task<List<EmployeeHistory>> GetScopeEmployeesAsync(Guid? datasetId = null)
     {
         using var connection = _db.CreateNpgsqlConnection();
@@ -53,33 +83,86 @@ public partial class DataAccessScopeService
             var batch = await connection.QueryFirstOrDefaultAsync<long?>(@"
                 SELECT source_batch_id FROM dataset_source_manifest
                 WHERE dataset_id = @datasetId AND source_type = 'EMPLOYEE' AND source_batch_id IS NOT NULL", new { datasetId });
-            if (!batch.HasValue)
-                throw new ScopeAccessException(422, "ORG_HISTORY_UNAVAILABLE", "Bản chốt chưa có phiên bản cây nhân sự để xem báo cáo.");
-            // Use the pinned source, never today's organization to reconstruct a published report.
-            var historical = (await connection.QueryAsync<EmployeeHistory>(@"
-                SELECT DISTINCT ON (employee_id) * FROM employee_history
-                WHERE batch_id = @batch AND valid_from <= @cutoff
-                ORDER BY employee_id, valid_from DESC, id DESC",
-                new { batch, cutoff = dataset.CutoffDate })).ToList();
-            if (historical.Count == 0)
-                throw new ScopeAccessException(422, "ORG_HISTORY_UNAVAILABLE", "Chưa đủ lịch sử nhân sự của bản chốt.");
-            return historical;
+            if (batch.HasValue)
+            {
+                // Use the pinned source, never today's organization to reconstruct a published report.
+                var historical = (await connection.QueryAsync<EmployeeHistory>(@"
+                    SELECT DISTINCT ON (employee_id) * FROM employee_history
+                    WHERE batch_id = @batch AND valid_from <= @cutoff
+                    ORDER BY employee_id, valid_from DESC, id DESC",
+                    new { batch, cutoff = dataset.CutoffDate })).ToList();
+                if (historical.Count > 0)
+                    return DeduplicateEmployees(historical);
+            }
+
+            // Fallback when dataset has no EMPLOYEE batch: derive flat sale identities from its contract/exception batches.
+            var derived = await connection.QueryAsync<EmployeeHistory>(@"
+                WITH manifest_batches AS (
+                    SELECT source_batch_id FROM dataset_source_manifest
+                    WHERE dataset_id = @datasetId AND source_batch_id IS NOT NULL
+                ),
+                contract_sales AS (
+                    SELECT TRIM(sale_id) AS employee_id, NULLIF(TRIM(sale_name), '') AS full_name, 0 AS prio, id
+                    FROM contract_appendix_version
+                    WHERE batch_id IN (SELECT source_batch_id FROM manifest_batches)
+                      AND NULLIF(TRIM(sale_id), '') IS NOT NULL
+                    UNION ALL
+                    SELECT TRIM(new_sale_id) AS employee_id, NULL AS full_name, 1 AS prio, id
+                    FROM contract_exception_version
+                    WHERE batch_id IN (SELECT source_batch_id FROM manifest_batches)
+                      AND NULLIF(TRIM(new_sale_id), '') IS NOT NULL
+                )
+                SELECT DISTINCT ON (UPPER(employee_id))
+                    employee_id,
+                    COALESCE(full_name, employee_id) AS full_name,
+                    'CVKD' AS position,
+                    NULL::varchar AS manager_employee_id,
+                    NULL::varchar AS branch,
+                    NULL::varchar AS department,
+                    NULL::varchar AS region
+                FROM contract_sales
+                ORDER BY UPPER(employee_id), (CASE WHEN full_name IS NOT NULL THEN 0 ELSE 1 END), prio ASC, id DESC;",
+                new { datasetId });
+            return DeduplicateEmployees(derived);
         }
 
-        // Current authoritative versions. Legacy employees fill only identities absent from history.
-        return (await connection.QueryAsync<EmployeeHistory>(@"
+        // Current authoritative versions: employee_history -> legacy employee -> active contract/exception sales.
+        var current = await connection.QueryAsync<EmployeeHistory>(@"
             WITH current_history AS (
                 SELECT DISTINCT ON (employee_id) * FROM employee_history
                 WHERE valid_from <= CURRENT_DATE AND valid_to > CURRENT_DATE
                 ORDER BY employee_id, valid_from DESC, id DESC
+            ),
+            contract_sales AS (
+                SELECT TRIM(sale_id) AS employee_id, NULLIF(TRIM(sale_name), '') AS full_name, 0 AS prio, id
+                FROM contract_appendix_version
+                WHERE is_active_version = TRUE
+                  AND NULLIF(TRIM(sale_id), '') IS NOT NULL
+                UNION ALL
+                SELECT TRIM(new_sale_id) AS employee_id, NULL AS full_name, 1 AS prio, id
+                FROM contract_exception_version
+                WHERE is_active_version = TRUE
+                  AND NULLIF(TRIM(new_sale_id), '') IS NOT NULL
+            ),
+            derived_sales AS (
+                SELECT DISTINCT ON (UPPER(employee_id))
+                    employee_id,
+                    COALESCE(full_name, employee_id) AS full_name
+                FROM contract_sales
+                ORDER BY UPPER(employee_id), (CASE WHEN full_name IS NOT NULL THEN 0 ELSE 1 END), prio ASC, id DESC
             )
             SELECT employee_id, full_name, position, manager_employee_id, branch, department, region FROM current_history
             UNION ALL
             SELECT e.id, e.full_name, COALESCE(e.position, 'CVKD'), e.manager_id,
                    e.branch_name, e.department_name, e.region_name
             FROM employee e WHERE NOT EXISTS (
-                SELECT 1 FROM employee_history h WHERE h.employee_id = e.id)
-            ")).ToList();
+                SELECT 1 FROM current_history h WHERE UPPER(TRIM(h.employee_id)) = UPPER(TRIM(e.id)))
+            UNION ALL
+            SELECT d.employee_id, d.full_name, 'CVKD', NULL::varchar, NULL::varchar, NULL::varchar, NULL::varchar
+            FROM derived_sales d
+            WHERE NOT EXISTS (SELECT 1 FROM current_history h WHERE UPPER(TRIM(h.employee_id)) = UPPER(d.employee_id))
+              AND NOT EXISTS (SELECT 1 FROM employee e WHERE UPPER(TRIM(e.id)) = UPPER(d.employee_id));");
+        return DeduplicateEmployees(current);
     }
 
     private static HashSet<string> VerticalIds(AppUser user, List<EmployeeHistory> employees)

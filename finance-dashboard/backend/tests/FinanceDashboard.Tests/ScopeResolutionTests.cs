@@ -67,4 +67,22 @@ public class ScopeResolutionTests
         Assert.Throws<ScopeAccessException>(() => new ReportFilters { Sort = "value; DROP TABLE employee" }.Validate(true));
         Assert.Throws<ScopeAccessException>(() => new ReportFilters { MinBalance = 20 }.Validate());
     }
+
+    [Fact]
+    public void DeduplicateEmployeesHandlesBlankDuplicatesAndMissingNames()
+    {
+        var raw = new List<EmployeeHistory>
+        {
+            new() { EmployeeId = "  ", FullName = "Invalid" },
+            new() { EmployeeId = "nv01 ", FullName = "" },
+            new() { EmployeeId = "NV01", FullName = "Nguyen Van A" },
+            new() { EmployeeId = "nv02", FullName = "Tran Thi B" },
+            new() { EmployeeId = "NV02", FullName = "Duplicate Should Be Ignored" }
+        };
+
+        var result = DataAccessScopeService.DeduplicateEmployees(raw);
+        Assert.Equal(2, result.Count);
+        Assert.Equal("Nguyen Van A", result.First(x => x.EmployeeId.Equals("nv01", StringComparison.OrdinalIgnoreCase)).FullName);
+        Assert.Equal("Tran Thi B", result.First(x => x.EmployeeId.Equals("nv02", StringComparison.OrdinalIgnoreCase)).FullName);
+    }
 }
