@@ -211,6 +211,8 @@ public class ReportingEngineV2Service
                     SELECT DISTINCT ON (c.appendix_number)
                         c.appendix_number,
                         c.contract_value,
+                        c.liquidated_amount,
+                        c.liquidate_date,
                         COALESCE(e.new_sale_id, c.sale_id) AS effective_sale_id
                     FROM contract_appendix_version c
                     LEFT JOIN contract_exception_version e 
@@ -238,7 +240,7 @@ public class ReportingEngineV2Service
                     GROUP BY appendix_number
                 )
                 SELECT 
-                    COALESCE(SUM(rc.contract_value - COALESCE(s.total_settled, 0)), 0) AS TotalBalance
+                    COALESCE(SUM({ReportFilters.BalanceExpr("rc", "s")}), 0) AS TotalBalance
                 FROM resolved_contracts rc
                 LEFT JOIN settlements s ON s.appendix_number = rc.appendix_number;";
 
@@ -398,6 +400,8 @@ public class ReportingEngineV2Service
                     c.appendix_number,
                     c.customer_code,
                     c.contract_value,
+                    c.liquidated_amount,
+                    c.liquidate_date,
                     c.sign_date,
                     c.product_name,
                     c.term,
@@ -431,7 +435,7 @@ public class ReportingEngineV2Service
                 COALESCE(SUM(CASE WHEN rc.sign_date >= @FromDate AND rc.sign_date <= @ToDate {revFilter}
                                   THEN rc.contract_value ELSE 0 END), 0) AS TotalSales,
                 COALESCE(SUM(CASE WHEN rc.sign_date <= @AsOfDate {balFilter}
-                                  THEN rc.contract_value - COALESCE(s.total_settled, 0) ELSE 0 END), 0) AS TotalBalance,
+                                  THEN {ReportFilters.BalanceExpr("rc", "s")} ELSE 0 END), 0) AS TotalBalance,
                 COUNT(DISTINCT CASE WHEN rc.sign_date >= @FromDate AND rc.sign_date <= @ToDate {revFilter}
                                     THEN rc.appendix_number END) AS ContractCount,
                 COUNT(DISTINCT CASE WHEN rc.sign_date >= @FromDate AND rc.sign_date <= @ToDate {revFilter}
@@ -552,6 +556,7 @@ public class ReportingEngineV2Service
                     c.status,
                     c.channel,
                     c.contract_value,
+                    c.liquidated_amount,
                     COALESCE(e.new_sale_id, c.sale_id) AS effective_sale_id
                 FROM contract_appendix_version c
                 LEFT JOIN contract_exception_version e 
@@ -580,8 +585,8 @@ public class ReportingEngineV2Service
             )
             /* contract_page */ SELECT 
                 r.*,
-                COALESCE(s.total_settled, 0) AS settled_amount,
-                r.contract_value - COALESCE(s.total_settled, 0) AS balance
+                {ReportFilters.SettledExpr("r", "s")} AS settled_amount,
+                {ReportFilters.BalanceExpr("r", "s")} AS balance
             FROM resolved r
             LEFT JOIN settlements s ON s.appendix_number = r.appendix_number
             {ReportFilters.BalanceClause}

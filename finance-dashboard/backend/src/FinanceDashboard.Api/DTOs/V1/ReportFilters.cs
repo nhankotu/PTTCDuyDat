@@ -50,9 +50,15 @@ public class ReportFilters
         AND ((@MinValue::numeric IS NULL AND @MaxValue::numeric IS NULL) OR @FilterAll
              OR COALESCE(e.new_sale_id, c.sale_id) = ANY(@FilterRevenueScope))";
 
-    public static string BalanceClause => @"
-        WHERE (@MinBalance::numeric IS NULL OR r.contract_value - COALESCE(s.total_settled,0) >= @MinBalance)
-          AND (@MaxBalance::numeric IS NULL OR r.contract_value - COALESCE(s.total_settled,0) <= @MaxBalance)
+    public static string SettledExpr(string rc = "rc", string s = "s") =>
+        $"(CASE WHEN {rc}.liquidate_date IS NULL OR {rc}.liquidate_date <= @AsOfDate THEN GREATEST(COALESCE({s}.total_settled, 0), COALESCE({rc}.liquidated_amount, 0)) ELSE COALESCE({s}.total_settled, 0) END)";
+
+    public static string BalanceExpr(string rc = "rc", string s = "s") =>
+        $"GREATEST(0, {rc}.contract_value - {SettledExpr(rc, s)})";
+
+    public static string BalanceClause => $@"
+        WHERE (@MinBalance::numeric IS NULL OR {BalanceExpr("r", "s")} >= @MinBalance)
+          AND (@MaxBalance::numeric IS NULL OR {BalanceExpr("r", "s")} <= @MaxBalance)
           AND ((@MinBalance::numeric IS NULL AND @MaxBalance::numeric IS NULL) OR @FilterAll
                OR r.effective_sale_id = ANY(@FilterBalanceScope))";
 
