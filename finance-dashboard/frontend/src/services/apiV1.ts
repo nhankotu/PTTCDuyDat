@@ -1,4 +1,4 @@
-import { api } from './api';
+import { api, API_BASE } from './api';
 import {
   DimensionFilters, ContractPage, ContractFilters,
   ViewScopeNode,
@@ -107,7 +107,7 @@ export const apiV1 = {
     if (params.datasetId) query.set('datasetId', params.datasetId);
     if (params.viewEmployeeId) query.set('viewEmployeeId', params.viewEmployeeId);
     if (params.view) query.set('view', params.view);
-    return `/api/v1/contracts/export?${query.toString()}`;
+    return `${API_BASE}/v1/contracts/export?${query.toString()}`;
   },
 
   // 3. Stocks

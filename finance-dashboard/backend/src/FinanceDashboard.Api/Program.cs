@@ -15,9 +15,15 @@ SqlMapper.AddTypeHandler(new NullableDateOnlyTypeHandler());
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Bind to Render's dynamic PORT env var when ASPNETCORE_URLS is not explicitly set
+if (string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPNETCORE_URLS")) &&
+    Environment.GetEnvironmentVariable("PORT") is { Length: > 0 } port)
+{
+    builder.WebHost.UseUrls($"http://+:{port}");
+}
+
 // Add Database Context
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? "Host=localhost;Port=5432;Database=finra_finance;Username=finra_admin;Password=finra_secret_pass_2026";
+var connectionString = DbConnectionFactory.ResolveConnectionString(builder.Configuration);
 
 builder.Services.AddDbContext<FinanceDbContext>(options =>
     options.UseNpgsql(connectionString));
@@ -37,14 +43,28 @@ builder.Services.AddScoped<FinanceDashboard.Api.Services.Import.ExcelImportV2Ser
 builder.Services.AddScoped<FinanceDashboard.Api.Services.Authorization.DataAccessScopeService>();
 builder.Services.AddScoped<FinanceDashboard.Api.Services.Reporting.ReportingEngineV2Service>();
 
-// Add CORS for Frontend
+// Add CORS for Frontend (uses Cors:AllowedOrigins comma-separated list if set, otherwise AllowAnyOrigin)
+var allowedOriginsRaw = builder.Configuration["Cors:AllowedOrigins"];
+var allowedOrigins = string.IsNullOrWhiteSpace(allowedOriginsRaw)
+    ? Array.Empty<string>()
+    : allowedOriginsRaw.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.AllowAnyOrigin()
-              .AllowAnyMethod()
-              .AllowAnyHeader();
+        if (allowedOrigins.Length > 0)
+        {
+            policy.WithOrigins(allowedOrigins)
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        }
+        else
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyMethod()
+                  .AllowAnyHeader();
+        }
     });
 });
 

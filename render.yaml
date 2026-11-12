@@ -1,0 +1,46 @@
+databases:
+  - name: finra-db
+    databaseName: finra_finance
+    user: finra_admin
+    plan: free
+    region: singapore
+    postgresMajorVersion: "16"
+
+services:
+  - type: web
+    name: finra-backend
+    runtime: docker
+    plan: free
+    region: singapore
+    rootDir: finance-dashboard/backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: Upload__MaxMb
+        value: "50"
+      - key: Jwt__Secret
+        generateValue: true
+      - key: ConnectionStrings__DefaultConnection
+        fromDatabase:
+          name: finra-db
+          property: connectionString
+
+  - type: web
+    name: finra-frontend
+    runtime: static
+    region: singapore
+    rootDir: finance-dashboard/frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: VITE_API_HOST
+        fromService:
+          type: web
+          name: finra-backend
+          property: host

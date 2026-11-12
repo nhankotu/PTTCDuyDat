@@ -16,7 +16,24 @@ import {
   BulkAssignScopeRequest,
 } from '../types';
 
-const API_BASE = '/api';
+function resolveApiBase(): string {
+  const explicitUrl = import.meta.env.VITE_API_URL?.trim();
+  if (explicitUrl) {
+    return explicitUrl.replace(/\/+$/, '');
+  }
+
+  const host = import.meta.env.VITE_API_HOST?.trim();
+  if (host) {
+    const normalized = host.startsWith('http://') || host.startsWith('https://')
+      ? host
+      : `https://${host}`;
+    return `${normalized.replace(/\/+$/, '')}/api`;
+  }
+
+  return '/api';
+}
+
+export const API_BASE = resolveApiBase();
 
 export const api = axios.create({
   baseURL: API_BASE,
