@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { dashboardApi } from '../services/api';
-import { UserAccount } from '../types';
+import { UserAccount, TreeFlatNode } from '../types';
 
 interface Props {
   branches: string[];
@@ -8,20 +8,32 @@ interface Props {
 
 export const UserManagement: React.FC<Props> = ({ branches }) => {
   const [users, setUsers] = useState<UserAccount[]>([]);
+  const [flatNodes, setFlatNodes] = useState<TreeFlatNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
 
-  // Form states
+  // Form states for Create User
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [role, setRole] = useState<'admin' | 'user'>('user');
-  const [branchAccess, setBranchAccess] = useState('');
+  const [scopeType, setScopeType] = useState<string>('ALL');
+  const [selectedNodeId, setSelectedNodeId] = useState<string>('');
   const [formError, setFormError] = useState<string | null>(null);
   const [formSuccess, setFormSuccess] = useState<string | null>(null);
 
+  // Quick Scope Edit Modal states
+  const [isScopeModalOpen, setIsScopeModalOpen] = useState(false);
+  const [scopeEditUser, setScopeEditUser] = useState<UserAccount | null>(null);
+  const [editScopeType, setEditScopeType] = useState<string>('ALL');
+  const [editSelectedNodeId, setEditSelectedNodeId] = useState<string>('');
+  const [scopeModalError, setScopeModalError] = useState<string | null>(null);
+  const [scopeModalSuccess, setScopeModalSuccess] = useState<string | null>(null);
+
   useEffect(() => {
     loadUsers();
+    loadFlatNodes();
   }, []);
 
   const loadUsers = async () => {
@@ -36,6 +48,15 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
     }
   };
 
+  const loadFlatNodes = async () => {
+    try {
+      const nodes = await dashboardApi.getFlatNodes();
+      setFlatNodes(nodes);
+    } catch (err) {
+      console.error('Lỗi khi tải danh sách Node cây phân cấp:', err);
+    }
+  };
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username.trim() || !password) {
@@ -44,20 +65,30 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
     }
 
     setFormError(null);
+
+    // Resolve node details
+    const chosenNode = flatNodes.find((n) => n.id === selectedNodeId && n.scopeType === scopeType);
+    const branchAccess = scopeType === 'BRANCH' ? selectedNodeId : undefined;
+
     try {
       await dashboardApi.createUser({
         username: username.trim(),
         password,
         fullName: fullName.trim(),
         role,
-        branchAccess: branchAccess || undefined,
+        branchAccess,
+        scopeType,
+        scopeNodeId: scopeType !== 'ALL' ? selectedNodeId : undefined,
+        scopeNodeName: chosenNode?.label,
+        scopeNodeRole: chosenNode?.position,
       });
 
       setFormSuccess(`Đã tạo tài khoản '${username}' thành công!`);
       setUsername('');
       setPassword('');
       setFullName('');
-      setBranchAccess('');
+      setScopeType('ALL');
+      setSelectedNodeId('');
       loadUsers();
       setTimeout(() => {
         setIsModalOpen(false);
@@ -65,6 +96,39 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
       }, 1200);
     } catch (err: any) {
       setFormError(err?.response?.data?.message || 'Không thể tạo tài khoản.');
+    }
+  };
+
+  const handleOpenScopeModal = (user: UserAccount) => {
+    setScopeEditUser(user);
+    setEditScopeType(user.scopeType || 'ALL');
+    setEditSelectedNodeId(user.scopeNodeId || '');
+    setScopeModalError(null);
+    setScopeModalSuccess(null);
+    setIsScopeModalOpen(true);
+  };
+
+  const handleSaveScope = async () => {
+    if (!scopeEditUser) return;
+
+    const chosenNode = flatNodes.find((n) => n.id === editSelectedNodeId && n.scopeType === editScopeType);
+
+    try {
+      await dashboardApi.updateUserScope(scopeEditUser.id, {
+        scopeType: editScopeType,
+        scopeNodeId: editScopeType !== 'ALL' ? editSelectedNodeId : undefined,
+        scopeNodeName: chosenNode?.label,
+        scopeNodeRole: chosenNode?.position,
+      });
+
+      setScopeModalSuccess(`Đã cập nhật phân quyền cho '${scopeEditUser.username}' thành công!`);
+      loadUsers();
+      setTimeout(() => {
+        setIsScopeModalOpen(false);
+        setScopeModalSuccess(null);
+      }, 1000);
+    } catch (err: any) {
+      setScopeModalError(err?.response?.data?.message || 'Lỗi khi cập nhật quyền.');
     }
   };
 
@@ -85,219 +149,431 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
     }
   };
 
+  // Filter flat nodes by chosen scope type
+  const getFilteredNodes = (type: string) => {
+    if (type === 'ALL') return [];
+    return flatNodes.filter((n) => n.scopeType === type);
+  };
+
+  const renderScopeBadge = (user: UserAccount) => {
+    const type = user.scopeType || (user.branchAccess ? 'BRANCH' : 'ALL');
+    const nodeName = user.scopeNodeName || user.branchAccess || user.scopeNodeId;
+
+    if (type === 'ALL') {
+      return (
+        <span className="inline-flex items-center gap-1 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-md text-xs font-semibold">
+          <span>🌐</span>
+          <span>Toàn hệ thống (Toàn quốc)</span>
+        </span>
+      );
+    }
+
+    if (type === 'REGION') {
+      return (
+        <span className="inline-flex items-center gap-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2.5 py-1 rounded-md text-xs font-semibold">
+          <span>🌐</span>
+          <span>Miền: {nodeName}</span>
+        </span>
+      );
+    }
+
+    if (type === 'BRANCH') {
+      return (
+        <span className="inline-flex items-center gap-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 px-2.5 py-1 rounded-md text-xs font-semibold">
+          <span>🏛️</span>
+          <span>Chi nhánh: {nodeName}</span>
+        </span>
+      );
+    }
+
+    if (type === 'DEPARTMENT') {
+      return (
+        <span className="inline-flex items-center gap-1 bg-teal-500/15 text-teal-300 border border-teal-500/30 px-2.5 py-1 rounded-md text-xs font-semibold">
+          <span>📑</span>
+          <span>Phòng: {nodeName}</span>
+        </span>
+      );
+    }
+
+    // EMPLOYEE_SUBTREE
+    return (
+      <span className="inline-flex items-center gap-1 bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-md text-xs font-semibold">
+        <span>👤</span>
+        <span>Cây con: {nodeName}</span>
+      </span>
+    );
+  };
+
   return (
-    <div className="card" style={{ padding: '24px', marginTop: '16px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+    <div className="bg-[#112240] rounded-2xl shadow-xl border border-[#233554] p-6 space-y-6 text-slate-100">
+      {/* Top Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
         <div>
-          <h2 style={{ fontSize: '18px', fontWeight: 800, color: '#f8fafc', textTransform: 'uppercase' }}>
-            Quản trị & Phân quyền Người dùng
+          <h2 className="text-base font-extrabold text-white uppercase tracking-wide flex items-center space-x-2">
+            <span className="p-1 rounded-md bg-amber-500/20 text-amber-400">👥</span>
+            <span>Quản Trị Người Dùng & Phân Quyền Theo Node Cây Con</span>
           </h2>
-          <p style={{ fontSize: '13px', color: '#94a3b8', marginTop: '4px' }}>
-            Chỉ Quản trị viên (Admin) mới có quyền tạo và cấp quyền truy cập chi nhánh cho nhân viên.
+          <p className="text-xs text-slate-400 mt-1 font-medium">
+            Admin có thể cấp quyền cho từng tài khoản xem dữ liệu của toàn bộ Node (Toàn quốc, Miền, Chi nhánh, Phòng ban, hoặc Cây con của Chuyên viên/Trưởng phòng).
           </p>
         </div>
 
-        <button className="btn-primary" onClick={() => { setIsModalOpen(true); setFormError(null); }}>
-          + Tạo tài khoản mới
+        <button
+          onClick={() => {
+            setIsModalOpen(true);
+            setFormError(null);
+            setFormSuccess(null);
+          }}
+          className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg transition flex items-center gap-2 cursor-pointer self-start sm:self-auto"
+        >
+          <span>＋</span>
+          <span>Tạo tài khoản mới</span>
         </button>
       </div>
 
+      {/* Users List Table */}
       {loading ? (
-        <div style={{ padding: '40px', textAlign: 'center', color: '#64748b' }}>Đang tải danh sách người dùng...</div>
+        <div className="p-12 text-center text-slate-400">
+          <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+          <span className="text-xs font-medium">Đang tải danh sách người dùng...</span>
+        </div>
       ) : (
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '13px' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8', background: '#0f1d30' }}>
-                <th style={{ padding: '12px 16px' }}>ID</th>
-                <th style={{ padding: '12px 16px' }}>Tên đăng nhập</th>
-                <th style={{ padding: '12px 16px' }}>Họ và tên</th>
-                <th style={{ padding: '12px 16px' }}>Vai trò</th>
-                <th style={{ padding: '12px 16px' }}>Phạm vi Chi nhánh</th>
-                <th style={{ padding: '12px 16px' }}>Ngày tạo</th>
-                <th style={{ padding: '12px 16px', textAlign: 'center' }}>Thao tác</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => (
-                <tr key={u.id} style={{ borderBottom: '1px solid rgba(255, 255, 255, 0.04)' }}>
-                  <td style={{ padding: '12px 16px', color: '#64748b' }}>#{u.id}</td>
-                  <td style={{ padding: '12px 16px', fontWeight: 600, color: '#38bdf8' }}>{u.username}</td>
-                  <td style={{ padding: '12px 16px', color: '#f1f5f9', fontWeight: 500 }}>{u.fullName}</td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <span style={{
-                      display: 'inline-block',
-                      padding: '3px 10px',
-                      borderRadius: '12px',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      background: u.role === 'admin' ? 'rgba(56, 189, 248, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                      color: u.role === 'admin' ? '#38bdf8' : '#34d399',
-                      border: `1px solid ${u.role === 'admin' ? '#0284c7' : '#059669'}`,
-                    }}>
-                      {u.role === 'admin' ? 'QUẢN TRỊ VIÊN' : 'NGƯỜI DÙNG'}
-                    </span>
-                  </td>
-                  <td style={{ padding: '12px 16px', color: '#cbd5e1' }}>
-                    {u.branchAccess ? (
-                      <span style={{ background: '#1e293b', padding: '3px 8px', borderRadius: '4px', fontSize: '12px' }}>
-                        📍 {u.branchAccess}
-                      </span>
-                    ) : (
-                      <span style={{ color: '#34d399', fontWeight: 600 }}>🌐 Toàn bộ chi nhánh</span>
-                    )}
-                  </td>
-                  <td style={{ padding: '12px 16px', color: '#64748b' }}>
-                    {new Date(u.createdAt).toLocaleDateString('vi-VN')}
-                  </td>
-                  <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                    {u.username.toLowerCase() !== 'admin' && (
-                      <button
-                        onClick={() => handleDeleteUser(u.id, u.username)}
-                        style={{
-                          background: 'rgba(239, 68, 68, 0.1)',
-                          border: '1px solid #dc2626',
-                          color: '#f87171',
-                          padding: '4px 10px',
-                          borderRadius: '4px',
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        Xóa
-                      </button>
-                    )}
-                  </td>
+        <div className="border border-white/10 rounded-xl overflow-hidden shadow-md">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-white/10 text-xs">
+              <thead className="bg-[#0a192f]">
+                <tr>
+                  <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase tracking-wider text-[11px]">ID</th>
+                  <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase tracking-wider text-[11px]">Tên Đăng Nhập</th>
+                  <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase tracking-wider text-[11px]">Họ Và Tên</th>
+                  <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase tracking-wider text-[11px]">Vai Trò</th>
+                  <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase tracking-wider text-[11px]">Phạm Vi Quyền Xem (Subtree Scope)</th>
+                  <th className="px-4 py-3 text-center font-bold text-slate-400 uppercase tracking-wider text-[11px]">Ngày Tạo</th>
+                  <th className="px-4 py-3 text-center font-bold text-slate-400 uppercase tracking-wider text-[11px]">Thao Tác</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-[#112240] divide-y divide-white/5">
+                {users.map((u) => (
+                  <tr key={u.id} className="hover:bg-white/5 transition-colors">
+                    <td className="px-4 py-3 text-slate-400 font-mono">#{u.id}</td>
+                    <td className="px-4 py-3 font-bold text-blue-400">{u.username}</td>
+                    <td className="px-4 py-3 font-semibold text-white">{u.fullName}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-block px-2.5 py-0.5 rounded-md text-[10px] font-bold border ${
+                          u.role === 'admin'
+                            ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                            : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                        }`}
+                      >
+                        {u.role === 'admin' ? 'QUẢN TRỊ VIÊN' : 'NGƯỜI DÙNG'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {renderScopeBadge(u)}
+                    </td>
+                    <td className="px-4 py-3 text-center text-slate-400">
+                      {new Date(u.createdAt).toLocaleDateString('vi-VN')}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenScopeModal(u)}
+                          className="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/40 text-blue-300 px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer"
+                          title="Chỉnh sửa phạm vi phân quyền theo node"
+                        >
+                          ⚙️ Phân quyền
+                        </button>
+
+                        {u.username.toLowerCase() !== 'admin' && (
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteUser(u.id, u.username)}
+                            className="bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer"
+                          >
+                            Xóa
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 
-      {/* Modal Tạo tài khoản mới */}
+      {/* Modal Tạo tài khoản mới kèm Phân quyền theo Node */}
       {isModalOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          backgroundColor: 'rgba(0, 0, 0, 0.75)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-        }}>
-          <div className="card" style={{ width: '480px', padding: '28px', background: '#112240', border: '1px solid #233554' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '17px', fontWeight: 700, color: '#f8fafc' }}>
-                Tạo Tài khoản & Cấp quyền User
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs">
+          <div className="bg-[#112240] rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-[#233554] text-slate-100 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-white/10 pb-3">
+              <h3 className="font-extrabold text-white text-base">
+                Tạo Tài Khoản & Cấp Quyền Theo Cây Node
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
-                style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '20px', cursor: 'pointer' }}
+                className="text-slate-400 hover:text-white text-lg font-bold cursor-pointer"
               >
-                &times;
+                ✕
               </button>
             </div>
 
             {formError && (
-              <div style={{ background: 'rgba(239, 68, 68, 0.12)', border: '1px solid #ef4444', color: '#fca5a5', padding: '10px 14px', borderRadius: '6px', fontSize: '12px', marginBottom: '16px' }}>
-                {formError}
+              <div className="bg-rose-500/20 border border-rose-500/40 text-rose-300 p-3 rounded-xl text-xs flex items-center space-x-2">
+                <span>⚠️</span>
+                <span>{formError}</span>
               </div>
             )}
 
             {formSuccess && (
-              <div style={{ background: 'rgba(16, 185, 129, 0.12)', border: '1px solid #10b981', color: '#6ee7b7', padding: '10px 14px', borderRadius: '6px', fontSize: '12px', marginBottom: '16px' }}>
-                {formSuccess}
+              <div className="bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 p-3 rounded-xl text-xs flex items-center space-x-2">
+                <span>✓</span>
+                <span>{formSuccess}</span>
               </div>
             )}
 
-            <form onSubmit={handleCreateUser}>
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>
-                  Tên đăng nhập (Username) *
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="ví dụ: user_hoankiem"
-                  style={{ width: '100%', padding: '8px 12px', background: '#0a192f', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px' }}
-                />
-              </div>
-
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>
-                  Mật khẩu khởi tạo *
-                </label>
-                <input
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Tối thiểu 6 ký tự"
-                  style={{ width: '100%', padding: '8px 12px', background: '#0a192f', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px' }}
-                />
-              </div>
-
-              <div style={{ marginBottom: '14px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>
-                  Họ và tên nhân viên
-                </label>
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="ví dụ: Nguyễn Văn A"
-                  style={{ width: '100%', padding: '8px 12px', background: '#0a192f', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px' }}
-                />
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '20px' }}>
+            <form onSubmit={handleCreateUser} className="space-y-4">
+              <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>
-                    Vai trò
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Tên đăng nhập (Username) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    placeholder="ví dụ: sale_vudinhtrang"
+                    className="w-full text-xs border border-white/15 rounded-xl p-2.5 bg-[#0a192f] text-white focus:border-blue-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Mật khẩu khởi tạo *
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Tối thiểu 6 ký tự"
+                    className="w-full text-xs border border-white/15 rounded-xl p-2.5 bg-[#0a192f] text-white focus:border-blue-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Họ và tên nhân viên
+                  </label>
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="ví dụ: Vũ Đình Thắng"
+                    className="w-full text-xs border border-white/15 rounded-xl p-2.5 bg-[#0a192f] text-white focus:border-blue-500 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    Vai trò hệ thống
                   </label>
                   <select
                     value={role}
                     onChange={(e) => setRole(e.target.value as any)}
-                    style={{ width: '100%', padding: '8px 12px', background: '#0a192f', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px' }}
+                    className="w-full text-xs border border-white/15 rounded-xl p-2.5 bg-[#0a192f] text-white focus:border-blue-500 outline-none"
                   >
-                    <option value="user">Người dùng (User)</option>
-                    <option value="admin">Quản trị viên (Admin)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '4px' }}>
-                    Phân quyền Chi nhánh
-                  </label>
-                  <select
-                    value={branchAccess}
-                    onChange={(e) => setBranchAccess(e.target.value)}
-                    style={{ width: '100%', padding: '8px 12px', background: '#0a192f', border: '1px solid #334155', borderRadius: '6px', color: '#fff', fontSize: '13px' }}
-                  >
-                    <option value="">Toàn bộ chi nhánh</option>
-                    {branches.map(b => (
-                      <option key={b} value={b}>{b}</option>
-                    ))}
+                    <option value="user">Người dùng thông thường (User)</option>
+                    <option value="admin">Quản trị viên (Admin - Toàn quyền)</option>
                   </select>
                 </div>
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                <button type="button" className="btn-secondary" onClick={() => setIsModalOpen(false)}>
+              {/* Scope Selection Box */}
+              <div className="bg-[#0a192f] border border-white/15 rounded-xl p-4 space-y-3">
+                <div className="font-bold text-xs text-blue-400 uppercase tracking-wide flex items-center gap-1.5">
+                  <span>🎯</span>
+                  <span>Phân Quyền Phạm Vi Dữ Liệu (Scope)</span>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    1. Cấp độ phân quyền
+                  </label>
+                  <select
+                    value={scopeType}
+                    onChange={(e) => {
+                      setScopeType(e.target.value);
+                      setSelectedNodeId('');
+                    }}
+                    className="w-full text-xs border border-white/15 rounded-xl p-2.5 bg-[#112240] text-white focus:border-blue-500 outline-none"
+                  >
+                    <option value="ALL">🌐 Toàn hệ thống (Toàn bộ các Miền & Chi nhánh)</option>
+                    <option value="REGION">🌐 Cấp Miền (Phó Tổng Miền - PTM)</option>
+                    <option value="BRANCH">🏛️ Cấp Chi nhánh (Giám đốc Chi nhánh - GĐCN)</option>
+                    <option value="DEPARTMENT">📑 Cấp Phòng ban (Trưởng phòng KD - TPKD)</option>
+                    <option value="EMPLOYEE_SUBTREE">👤 Cây con của Nhân sự cụ thể (Chuyên viên / CTV)</option>
+                  </select>
+                </div>
+
+                {scopeType !== 'ALL' && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      2. Chọn Node cụ thể muốn gán quyền
+                    </label>
+                    <select
+                      value={selectedNodeId}
+                      onChange={(e) => setSelectedNodeId(e.target.value)}
+                      required
+                      className="w-full text-xs border border-white/15 rounded-xl p-2.5 bg-[#112240] text-white focus:border-blue-500 outline-none"
+                    >
+                      <option value="">-- Vui lòng chọn Node tương ứng --</option>
+                      {getFilteredNodes(scopeType).map((node) => (
+                        <option key={node.id} value={node.id}>
+                          {node.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Scope Preview Note */}
+                <div className="text-[11px] text-slate-400 bg-white/5 p-2.5 rounded-lg border border-white/5">
+                  {scopeType === 'ALL' && (
+                    <span>Tài khoản này sẽ xem được toàn bộ hợp đồng, doanh số và nhân sự trên toàn hệ thống.</span>
+                  )}
+                  {scopeType === 'REGION' && selectedNodeId && (
+                    <span>Tài khoản sẽ xem được tất cả các Chi nhánh, Phòng ban, Sale và CTV thuộc khu vực <b>{selectedNodeId}</b>.</span>
+                  )}
+                  {scopeType === 'BRANCH' && selectedNodeId && (
+                    <span>Tài khoản sẽ xem được toàn bộ các Phòng ban, Sale và CTV thuộc Chi nhánh <b>{selectedNodeId}</b>.</span>
+                  )}
+                  {scopeType === 'DEPARTMENT' && selectedNodeId && (
+                    <span>Tài khoản sẽ xem được Trưởng phòng và toàn bộ các Chuyên viên KD, CTV trong phòng <b>{selectedNodeId}</b>.</span>
+                  )}
+                  {scopeType === 'EMPLOYEE_SUBTREE' && selectedNodeId && (
+                    <span>Tài khoản sẽ xem được doanh số của nhân sự <b>{selectedNodeId}</b> và toàn bộ các cấp dưới trực thuộc trên cây.</span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-2 pt-3 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="px-4 py-2 border border-white/15 rounded-xl text-xs font-semibold text-slate-300 hover:bg-white/5 cursor-pointer"
+                >
                   Hủy
                 </button>
-                <button type="submit" className="btn-primary">
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer"
+                >
                   Lưu & Cấp tài khoản
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Chỉnh sửa nhanh Phân Quyền cho User hiện có */}
+      {isScopeModalOpen && scopeEditUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs">
+          <div className="bg-[#112240] rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-[#233554] text-slate-100">
+            <div className="flex justify-between items-center border-b border-white/10 pb-3">
+              <div>
+                <h3 className="font-extrabold text-white text-base">
+                  Cập Nhật Phân Quyền Theo Node
+                </h3>
+                <p className="text-xs text-blue-400 mt-0.5">
+                  Tài khoản: <b>{scopeEditUser.username}</b> ({scopeEditUser.fullName})
+                </p>
+              </div>
+              <button
+                onClick={() => setIsScopeModalOpen(false)}
+                className="text-slate-400 hover:text-white text-lg font-bold cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {scopeModalError && (
+              <div className="bg-rose-500/20 border border-rose-500/40 text-rose-300 p-3 rounded-xl text-xs">
+                ⚠️ {scopeModalError}
+              </div>
+            )}
+
+            {scopeModalSuccess && (
+              <div className="bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 p-3 rounded-xl text-xs">
+                ✓ {scopeModalSuccess}
+              </div>
+            )}
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  1. Cấp độ phạm vi phân quyền
+                </label>
+                <select
+                  value={editScopeType}
+                  onChange={(e) => {
+                    setEditScopeType(e.target.value);
+                    setEditSelectedNodeId('');
+                  }}
+                  className="w-full text-xs border border-white/15 rounded-xl p-2.5 bg-[#0a192f] text-white focus:border-blue-500 outline-none"
+                >
+                  <option value="ALL">🌐 Toàn hệ thống (Toàn bộ các Miền & Chi nhánh)</option>
+                  <option value="REGION">🌐 Cấp Miền (Phó Tổng Miền - PTM)</option>
+                  <option value="BRANCH">🏛️ Cấp Chi nhánh (Giám đốc Chi nhánh - GĐCN)</option>
+                  <option value="DEPARTMENT">📑 Cấp Phòng ban (Trưởng phòng KD - TPKD)</option>
+                  <option value="EMPLOYEE_SUBTREE">👤 Cây con của Nhân sự cụ thể (Chuyên viên / CTV)</option>
+                </select>
+              </div>
+
+              {editScopeType !== 'ALL' && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    2. Chọn Node cụ thể muốn gán quyền
+                  </label>
+                  <select
+                    value={editSelectedNodeId}
+                    onChange={(e) => setEditSelectedNodeId(e.target.value)}
+                    className="w-full text-xs border border-white/15 rounded-xl p-2.5 bg-[#0a192f] text-white focus:border-blue-500 outline-none"
+                  >
+                    <option value="">-- Vui lòng chọn Node tương ứng --</option>
+                    {getFilteredNodes(editScopeType).map((node) => (
+                      <option key={node.id} value={node.id}>
+                        {node.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end space-x-2 pt-4 border-t border-white/10">
+              <button
+                type="button"
+                onClick={() => setIsScopeModalOpen(false)}
+                className="px-4 py-2 border border-white/15 rounded-xl text-xs font-semibold text-slate-300 hover:bg-white/5 cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveScope}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer"
+              >
+                Lưu Thay Đổi
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -36,6 +36,36 @@ public class AppUser
     [Column("is_active")]
     public bool IsActive { get; set; } = true;
 
+    [Column("employee_id")]
+    [MaxLength(50)]
+    public string? EmployeeId { get; set; }
+
+    [Column("can_view_subordinates")]
+    public bool CanViewSubordinates { get; set; } = true;
+
+    [Column("subordinate_view_updated_at")]
+    public DateTime? SubordinateViewUpdatedAt { get; set; }
+
+    [Column("subordinate_view_updated_by")]
+    [MaxLength(50)]
+    public string? SubordinateViewUpdatedBy { get; set; }
+
+    [Column("scope_type")]
+    [MaxLength(50)]
+    public string ScopeType { get; set; } = "ALL";
+
+    [Column("scope_node_id")]
+    [MaxLength(100)]
+    public string? ScopeNodeId { get; set; }
+
+    [Column("scope_node_name")]
+    [MaxLength(255)]
+    public string? ScopeNodeName { get; set; }
+
+    [Column("scope_node_role")]
+    [MaxLength(100)]
+    public string? ScopeNodeRole { get; set; }
+
     [Column("created_at")]
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

@@ -74,6 +74,10 @@ export interface UserAccount {
   fullName: string;
   role: 'admin' | 'user';
   branchAccess?: string;
+  scopeType?: string;
+  scopeNodeId?: string;
+  scopeNodeName?: string;
+  scopeNodeRole?: string;
   createdAt: string;
 }
 
@@ -84,4 +88,70 @@ export interface AuthSession {
   fullName: string;
   role: string;
   branchAccess?: string;
+  scopeType?: string;
+  scopeNodeId?: string;
+  scopeNodeName?: string;
+  scopeNodeRole?: string;
+}
+
+export interface TreeNode {
+  id: string;
+  label: string;
+  position: string;
+  department?: string;
+  branch?: string;
+  region?: string;
+  status?: string;
+  directSubordinatesCount: number;
+  totalSubordinatesCount: number;
+  totalRevenue: number;
+  totalBalance: number;
+  children: TreeNode[];
+}
+
+export interface TreeFlatNode {
+  id: string;
+  label: string;
+  position: string;
+  branch?: string;
+  region?: string;
+  department?: string;
+  scopeType: string;
+  subordinatesCount: number;
+}
+
+export interface UpdateUserScopeRequest {
+  scopeType: string;
+  scopeNodeId?: string;
+  scopeNodeName?: string;
+  scopeNodeRole?: string;
+}
+
+export interface PermissionPreset {
+  id: number;
+  name: string;
+  description?: string;
+  scopeType: string;
+  scopeNodeId?: string;
+  scopeNodeName?: string;
+  scopeNodeRole?: string;
+  createdAt: string;
+  createdBy?: string;
+}
+
+export interface CreatePermissionPresetRequest {
+  name: string;
+  description?: string;
+  scopeType: string;
+  scopeNodeId?: string;
+  scopeNodeName?: string;
+  scopeNodeRole?: string;
+}
+
+export interface BulkAssignScopeRequest {
+  userIds: number[];
+  scopeType: string;
+  scopeNodeId?: string;
+  scopeNodeName?: string;
+  scopeNodeRole?: string;
 }

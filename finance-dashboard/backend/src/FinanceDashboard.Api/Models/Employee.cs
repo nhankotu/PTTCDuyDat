@@ -23,9 +23,31 @@ public class Employee
     [MaxLength(150)]
     public string? DepartmentName { get; set; }
 
+    [Column("region_name")]
+    [MaxLength(150)]
+    public string? RegionName { get; set; }
+
+    [Column("position")]
+    [MaxLength(50)]
+    public string? Position { get; set; }
+
+    [Column("level")]
+    public int? Level { get; set; }
+
     [Column("manager_id")]
     [MaxLength(50)]
     public string? ManagerId { get; set; }
+
+    [Column("manager_name")]
+    [MaxLength(200)]
+    public string? ManagerName { get; set; }
+
+    [Column("status")]
+    [MaxLength(50)]
+    public string? Status { get; set; }
+
+    [Column("is_active")]
+    public bool IsActive { get; set; } = true;
 
     [Column("batch_id")]
     public int? BatchId { get; set; }

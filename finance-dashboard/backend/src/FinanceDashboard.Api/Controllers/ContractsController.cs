@@ -1,5 +1,6 @@
 using FinanceDashboard.Api.Data;
 using FinanceDashboard.Api.DTOs;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -7,6 +8,7 @@ namespace FinanceDashboard.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize]
 public class ContractsController : ControllerBase
 {
     private readonly FinanceDbContext _dbContext;
@@ -83,7 +85,6 @@ public class ContractsController : ControllerBase
                 c.ProductNameRaw,
                 c.TermRaw,
                 c.TermGroup,
-                c.InterestRateRaw,
                 c.ContractValue,
                 c.SignDate,
                 c.ExpireDate,

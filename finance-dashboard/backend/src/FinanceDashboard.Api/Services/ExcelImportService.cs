@@ -303,7 +303,7 @@ public class ExcelImportService : IExcelImportService
             await using (var writer = await connection.BeginBinaryImportAsync(
                 @"COPY contract (
                     batch_id, stt, appendix_number, contract_number, customer_code, customer_name,
-                    product_name_raw, product_group, term_raw, term_group, interest_rate_raw, interest_rate,
+                    product_name_raw, product_group, term_raw, term_group,
                     estimated_interest, interest_payment_method, contract_value, liquidated_amount,
                     sign_date, expire_date, liquidate_date, is_liquidated, status, channel, settlement_channel,
                     user_active, ds_type, partial_settle_date, partial_settle_amount, dsqd_no_early_withdraw,
@@ -329,8 +329,7 @@ public class ExcelImportService : IExcelImportService
                     var custCode = cols.Count > 3 ? cols[3]?.ToString()?.Trim() : null;
                     var custName = cols.Count > 4 ? cols[4]?.ToString()?.Trim() : null;
                     var termRaw = cols.Count > 5 ? cols[5]?.ToString()?.Trim() : null;
-                    var rateRaw = cols.Count > 6 ? cols[6]?.ToString()?.Trim() : null;
-                    decimal? rateVal = ParsePercentage(rateRaw);
+                    // Column 6 in the legacy workbook is excluded; preserve other column offsets.
                     decimal estInterest = cols.Count > 7 && decimal.TryParse(cols[7]?.ToString(), out var ei) ? ei : 0;
                     var payMethod = cols.Count > 8 ? cols[8]?.ToString()?.Trim() : null;
                     decimal val = cols.Count > 9 && decimal.TryParse(cols[9]?.ToString(), out var v) ? v : 0;
@@ -383,8 +382,10 @@ public class ExcelImportService : IExcelImportService
                     totalValue += val;
                     totalBalance += balCur;
 
-                    // Serialize raw snapshot
-                    var rawJson = JsonSerializer.Serialize(cols);
+                    // Keep the legacy snapshot layout without retaining the excluded rate.
+                    var snapshotCols = cols.Select(value => (object?)value).ToArray();
+                    snapshotCols[6] = null;
+                    var rawJson = JsonSerializer.Serialize(snapshotCols);
 
                     await writer.StartRowAsync();
                     await writer.WriteAsync(batchId, NpgsqlDbType.Integer);
@@ -397,8 +398,6 @@ public class ExcelImportService : IExcelImportService
                     await writer.WriteAsync(prodGroup, NpgsqlDbType.Varchar);
                     await writer.WriteAsync(termRaw, NpgsqlDbType.Varchar);
                     await writer.WriteAsync(termGroup, NpgsqlDbType.Varchar);
-                    await writer.WriteAsync(rateRaw, NpgsqlDbType.Varchar);
-                    await writer.WriteAsync(rateVal, NpgsqlDbType.Numeric);
                     await writer.WriteAsync(estInterest, NpgsqlDbType.Numeric);
                     await writer.WriteAsync(payMethod, NpgsqlDbType.Varchar);
                     await writer.WriteAsync(val, NpgsqlDbType.Numeric);
@@ -488,17 +487,6 @@ public class ExcelImportService : IExcelImportService
 
             throw;
         }
-    }
-
-    private static decimal? ParsePercentage(string? raw)
-    {
-        if (string.IsNullOrWhiteSpace(raw)) return null;
-        raw = raw.Replace("%", "").Trim();
-        if (decimal.TryParse(raw, out var val))
-        {
-            return val / 100m;
-        }
-        return null;
     }
 
     private static DateTime? ParseDate(object? val)

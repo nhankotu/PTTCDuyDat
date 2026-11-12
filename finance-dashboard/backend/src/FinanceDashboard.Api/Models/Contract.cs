@@ -48,13 +48,6 @@ public class Contract
     [MaxLength(50)]
     public string? TermGroup { get; set; }
 
-    [Column("interest_rate_raw")]
-    [MaxLength(30)]
-    public string? InterestRateRaw { get; set; }
-
-    [Column("interest_rate")]
-    public decimal? InterestRate { get; set; }
-
     [Column("estimated_interest")]
     public decimal EstimatedInterest { get; set; }
 

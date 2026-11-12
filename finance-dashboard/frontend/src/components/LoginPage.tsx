@@ -26,188 +26,91 @@ export const LoginPage: React.FC<Props> = ({ onLoginSuccess }) => {
       const session = await dashboardApi.login(username.trim(), password);
       onLoginSuccess(session);
     } catch (err: any) {
-      setError(err?.response?.data?.message || 'Tên đăng nhập hoặc mật khẩu không chính xác.');
+      console.error('Login error:', err);
+      const msg =
+        err?.response?.data?.message ||
+        (err.code === 'ERR_NETWORK' || err.response?.status === 502
+          ? 'Không thể kết nối đến máy chủ Backend (Port 8080). Vui lòng kiểm tra lại dịch vụ.'
+          : 'Tên đăng nhập hoặc mật khẩu không chính xác.');
+      setError(msg);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleQuickLogin = (u: string, p: string) => {
-    setUsername(u);
-    setPassword(p);
-  };
-
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'radial-gradient(circle at 50% 30%, #172a46 0%, #0c1829 100%)',
-      padding: '20px',
-    }}>
-      <div style={{
-        width: '100%',
-        maxWidth: '440px',
-        background: '#112240',
-        border: '1px solid #233554',
-        borderRadius: '12px',
-        padding: '36px 32px',
-        boxShadow: '0 20px 50px rgba(0, 0, 0, 0.5)',
-      }}>
+    <div className="min-h-screen flex items-center justify-center bg-slate-950 p-4 antialiased">
+      <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-3xl p-8 shadow-2xl relative overflow-hidden">
+        {/* Subtle decorative glow */}
+        <div className="absolute -top-24 -left-24 w-48 h-48 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute -bottom-24 -right-24 w-48 h-48 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none" />
+
         {/* Brand Header */}
-        <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{
-            width: '48px',
-            height: '48px',
-            background: 'linear-gradient(135deg, #00b4d8, #0077b6)',
-            borderRadius: '10px',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 900,
-            color: '#ffffff',
-            fontSize: '24px',
-            marginBottom: '12px',
-            boxShadow: '0 4px 15px rgba(0, 180, 216, 0.3)',
-          }}>
+        <div className="text-center mb-8 relative">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 flex items-center justify-center font-black text-white text-2xl shadow-lg ring-1 ring-white/20 mx-auto mb-4">
             F
           </div>
-          <h1 style={{ fontSize: '22px', fontWeight: 800, color: '#f8fafc', letterSpacing: '0.5px' }}>
+          <h1 className="text-2xl font-black text-white tracking-tight">
             Finra Finance
           </h1>
-          <p style={{ fontSize: '13px', color: '#94a3b8', marginTop: '4px' }}>
-            Hệ thống Quản trị & Báo cáo Báo cáo Tài chính
+          <p className="text-xs text-slate-400 mt-1 font-medium">
+            Hệ thống Quản trị & Báo cáo Tài chính Toàn diện
           </p>
         </div>
 
         {error && (
-          <div style={{
-            background: 'rgba(239, 68, 68, 0.12)',
-            border: '1px solid #ef4444',
-            color: '#fca5a5',
-            padding: '12px 14px',
-            borderRadius: '6px',
-            fontSize: '13px',
-            marginBottom: '20px',
-          }}>
-            {error}
+          <div className="bg-rose-500/10 border border-rose-500/30 text-rose-300 px-4 py-3 rounded-xl text-xs flex items-center gap-2 mb-6 animate-fadeIn">
+            <span className="text-base shrink-0">⚠️</span>
+            <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '18px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
+        <form onSubmit={handleSubmit} className="space-y-5 relative">
+          <div>
+            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
               Tên đăng nhập
             </label>
             <input
               type="text"
+              required
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               placeholder="Nhập username (ví dụ: admin)"
               autoComplete="username"
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                background: '#0a192f',
-                border: '1px solid #334155',
-                borderRadius: '6px',
-                color: '#ffffff',
-                fontSize: '14px',
-                outline: 'none',
-              }}
+              className="w-full px-4 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition"
             />
           </div>
 
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
+          <div>
+            <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
               Mật khẩu
             </label>
             <input
               type="password"
+              required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Nhập mật khẩu"
               autoComplete="current-password"
-              style={{
-                width: '100%',
-                padding: '10px 14px',
-                background: '#0a192f',
-                border: '1px solid #334155',
-                borderRadius: '6px',
-                color: '#ffffff',
-                fontSize: '14px',
-                outline: 'none',
-              }}
+              className="w-full px-4 py-2.5 bg-slate-950 border border-slate-700/80 rounded-xl text-white text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition"
             />
           </div>
 
           <button
             type="submit"
             disabled={loading}
-            style={{
-              width: '100%',
-              padding: '12px',
-              background: 'linear-gradient(135deg, #0077b6, #00b4d8)',
-              color: '#ffffff',
-              border: 'none',
-              borderRadius: '6px',
-              fontSize: '14px',
-              fontWeight: 700,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              boxShadow: '0 4px 15px rgba(0, 119, 182, 0.4)',
-              transition: 'all 0.2s',
-            }}
+            className="w-full py-3 bg-gradient-to-r from-blue-600 via-indigo-600 to-cyan-500 hover:from-blue-500 hover:to-cyan-400 text-white rounded-xl font-bold text-sm shadow-lg shadow-blue-500/25 transition-all duration-200 cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2 mt-2"
           >
-            {loading ? 'Đang xác thực...' : 'Đăng nhập vào hệ thống'}
+            {loading ? (
+              <>
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Đang xác thực...</span>
+              </>
+            ) : (
+              <span>Đăng nhập vào hệ thống</span>
+            )}
           </button>
         </form>
-
-        {/* Quick login hint */}
-        <div style={{
-          marginTop: '24px',
-          paddingTop: '18px',
-          borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-          fontSize: '12px',
-          color: '#64748b',
-          textAlign: 'center',
-        }}>
-          <div>Tài khoản quản trị mặc định:</div>
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '8px' }}>
-            <button
-              type="button"
-              onClick={() => handleQuickLogin('admin', 'admin123')}
-              style={{
-                background: 'rgba(56, 189, 248, 0.1)',
-                border: '1px solid #0284c7',
-                color: '#38bdf8',
-                padding: '4px 10px',
-                borderRadius: '4px',
-                fontSize: '11px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              admin / admin123 (Quản trị viên)
-            </button>
-            <button
-              type="button"
-              onClick={() => handleQuickLogin('sale_manager', 'password123')}
-              style={{
-                background: 'rgba(16, 185, 129, 0.1)',
-                border: '1px solid #059669',
-                color: '#34d399',
-                padding: '4px 10px',
-                borderRadius: '4px',
-                fontSize: '11px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              sale_manager (User chi nhánh)
-            </button>
-          </div>
-        </div>
       </div>
     </div>
   );

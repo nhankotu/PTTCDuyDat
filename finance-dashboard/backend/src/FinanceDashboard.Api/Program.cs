@@ -1,10 +1,17 @@
 using System.Text;
+using Dapper;
 using FinanceDashboard.Api.Data;
 using FinanceDashboard.Api.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+
+// Configure Dapper Underscore matching and DateOnly handlers (R03, R04)
+DefaultTypeMap.MatchNamesWithUnderscores = true;
+SqlMapper.AddTypeHandler(new DateOnlyTypeHandler());
+SqlMapper.AddTypeHandler(new NullableDateOnlyTypeHandler());
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,12 +23,19 @@ builder.Services.AddDbContext<FinanceDbContext>(options =>
     options.UseNpgsql(connectionString));
 
 // Add Dapper DB Factory
-builder.Services.AddSingleton<IDbConnectionFactory, DbConnectionFactory>();
+builder.Services.AddSingleton<DbConnectionFactory>();
+builder.Services.AddSingleton<IDbConnectionFactory>(sp => sp.GetRequiredService<DbConnectionFactory>());
 
 // Add Application Services
 builder.Services.AddScoped<IExcelImportService, ExcelImportService>();
 builder.Services.AddScoped<IDashboardService, DashboardService>();
+builder.Services.AddScoped<IOrgTreeService, OrgTreeService>();
 builder.Services.AddSingleton<IStorageService, LocalStorageService>();
+
+// Add V1 Versioned Services
+builder.Services.AddScoped<FinanceDashboard.Api.Services.Import.ExcelImportV2Service>();
+builder.Services.AddScoped<FinanceDashboard.Api.Services.Authorization.DataAccessScopeService>();
+builder.Services.AddScoped<FinanceDashboard.Api.Services.Reporting.ReportingEngineV2Service>();
 
 // Add CORS for Frontend
 builder.Services.AddCors(options =>
@@ -35,7 +49,7 @@ builder.Services.AddCors(options =>
 });
 
 // Add Controllers
-builder.Services.AddControllers();
+builder.Services.AddControllers(options => options.Filters.Add<FinanceDashboard.Api.Controllers.V1.ScopeExceptionFilter>());
 
 // Add JWT Authentication
 var jwtSecret = builder.Configuration["Jwt:Secret"] ?? "Finra_Super_Secret_Key_For_Jwt_Auth_2026_Minimum_32_Chars!";
@@ -51,6 +65,14 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             ClockSkew = TimeSpan.Zero
         };
     });
+
+// Enforce authentication by default on all endpoints (R01)
+builder.Services.AddAuthorization(options =>
+{
+    options.FallbackPolicy = new AuthorizationPolicyBuilder()
+        .RequireAuthenticatedUser()
+        .Build();
+});
 
 // Add Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -94,7 +116,8 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// Health check endpoint
-app.MapGet("/api/health", () => Results.Ok(new { status = "Healthy", time = DateTime.UtcNow }));
+// Health check endpoint (AllowAnonymous)
+app.MapGet("/api/health", () => Results.Ok(new { status = "Healthy", time = DateTime.UtcNow }))
+   .AllowAnonymous();
 
 app.Run();

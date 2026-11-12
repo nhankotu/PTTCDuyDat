@@ -56,8 +56,14 @@ public class LoginResponseDto
     public string Username { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string Role { get; set; } = string.Empty;
+    public string? EmployeeId { get; set; }
+    public bool CanViewSubordinates { get; set; } = true;
     public string? BranchAccess { get; set; }
     public string? Permissions { get; set; }
+    public string ScopeType { get; set; } = "ALL";
+    public string? ScopeNodeId { get; set; }
+    public string? ScopeNodeName { get; set; }
+    public string? ScopeNodeRole { get; set; }
 }
 
 public class RefreshTokenRequestDto
@@ -71,7 +77,13 @@ public class UserDto
     public string Username { get; set; } = string.Empty;
     public string FullName { get; set; } = string.Empty;
     public string Role { get; set; } = "user";
+    public string? EmployeeId { get; set; }
+    public bool CanViewSubordinates { get; set; } = true;
     public string? BranchAccess { get; set; }
+    public string ScopeType { get; set; } = "ALL";
+    public string? ScopeNodeId { get; set; }
+    public string? ScopeNodeName { get; set; }
+    public string? ScopeNodeRole { get; set; }
     public DateTime CreatedAt { get; set; }
 }
 
@@ -82,6 +94,10 @@ public class CreateUserDto
     public string FullName { get; set; } = string.Empty;
     public string Role { get; set; } = "user"; // admin, user
     public string? BranchAccess { get; set; }   // null = all branches
+    public string ScopeType { get; set; } = "ALL";
+    public string? ScopeNodeId { get; set; }
+    public string? ScopeNodeName { get; set; }
+    public string? ScopeNodeRole { get; set; }
 }
 
 public class ChangePasswordDto

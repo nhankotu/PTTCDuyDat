@@ -52,8 +52,6 @@ CREATE TABLE IF NOT EXISTS contract (
     term_group              VARCHAR(50),
     
     -- Giá trị tài chính
-    interest_rate_raw       VARCHAR(30),
-    interest_rate           NUMERIC(8,4),
     estimated_interest      NUMERIC(18,2) DEFAULT 0,
     interest_payment_method VARCHAR(50),
     contract_value          NUMERIC(18,2) NOT NULL DEFAULT 0,

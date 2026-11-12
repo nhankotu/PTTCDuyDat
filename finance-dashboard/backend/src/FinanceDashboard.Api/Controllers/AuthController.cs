@@ -25,6 +25,7 @@ public class AuthController : ControllerBase
         _config = config;
     }
 
+    [AllowAnonymous]
     [HttpPost("login")]
     public async Task<ActionResult<LoginResponseDto>> Login([FromBody] LoginRequestDto req)
     {
@@ -64,7 +65,7 @@ public class AuthController : ControllerBase
             return StatusCode(403, new { message = "Tài khoản của bạn đã bị vô hiệu hóa bởi Quản trị viên." });
         }
 
-        bool valid = BCrypt.Net.BCrypt.Verify(req.Password, user.PasswordHash) || (req.Password == "admin123" && user.Username == "admin");
+        bool valid = BCrypt.Net.BCrypt.Verify(req.Password, user.PasswordHash);
         if (!valid)
         {
             return Unauthorized(new { message = "Sai tên đăng nhập hoặc mật khẩu." });
@@ -80,11 +81,18 @@ public class AuthController : ControllerBase
             Username = user.Username,
             FullName = user.FullName,
             Role = user.Role,
+            EmployeeId = user.EmployeeId,
+            CanViewSubordinates = user.CanViewSubordinates,
             BranchAccess = user.BranchAccess,
-            Permissions = user.Permissions
+            Permissions = user.Permissions,
+            ScopeType = user.ScopeType,
+            ScopeNodeId = user.ScopeNodeId,
+            ScopeNodeName = user.ScopeNodeName,
+            ScopeNodeRole = user.ScopeNodeRole
         });
     }
 
+    [AllowAnonymous]
     [HttpPost("refresh")]
     public async Task<ActionResult<LoginResponseDto>> RefreshToken([FromBody] RefreshTokenRequestDto req)
     {
@@ -134,6 +142,10 @@ public class AuthController : ControllerBase
             FullName = user.FullName,
             Role = user.Role,
             BranchAccess = user.BranchAccess,
+            ScopeType = user.ScopeType,
+            ScopeNodeId = user.ScopeNodeId,
+            ScopeNodeName = user.ScopeNodeName,
+            ScopeNodeRole = user.ScopeNodeRole,
             Permissions = user.Permissions
         });
     }
@@ -183,6 +195,8 @@ public class AuthController : ControllerBase
 
         var claims = new List<Claim>
         {
+            new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new Claim(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new Claim(ClaimTypes.Name, user.Username),
             new Claim(ClaimTypes.Role, user.Role),
             new Claim("FullName", user.FullName),
@@ -192,6 +206,19 @@ public class AuthController : ControllerBase
         if (!string.IsNullOrEmpty(user.BranchAccess))
         {
             claims.Add(new Claim("BranchAccess", user.BranchAccess));
+        }
+
+        if (!string.IsNullOrEmpty(user.ScopeType))
+        {
+            claims.Add(new Claim("ScopeType", user.ScopeType));
+        }
+        if (!string.IsNullOrEmpty(user.ScopeNodeId))
+        {
+            claims.Add(new Claim("ScopeNodeId", user.ScopeNodeId));
+        }
+        if (!string.IsNullOrEmpty(user.ScopeNodeName))
+        {
+            claims.Add(new Claim("ScopeNodeName", user.ScopeNodeName));
         }
 
         // Access Token sống 60 phút

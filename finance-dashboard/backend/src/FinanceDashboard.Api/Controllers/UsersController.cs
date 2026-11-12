@@ -43,6 +43,10 @@ public class UsersController : ControllerBase
                 FullName = u.FullName,
                 Role = u.Role,
                 BranchAccess = u.BranchAccess,
+                ScopeType = u.ScopeType,
+                ScopeNodeId = u.ScopeNodeId,
+                ScopeNodeName = u.ScopeNodeName,
+                ScopeNodeRole = u.ScopeNodeRole,
                 CreatedAt = u.CreatedAt
             })
             .ToListAsync();
@@ -80,6 +84,10 @@ public class UsersController : ControllerBase
             FullName = string.IsNullOrWhiteSpace(req.FullName) ? req.Username : req.FullName.Trim(),
             Role = req.Role == "admin" ? "admin" : "user",
             BranchAccess = string.IsNullOrWhiteSpace(req.BranchAccess) ? null : req.BranchAccess.Trim(),
+            ScopeType = string.IsNullOrWhiteSpace(req.ScopeType) ? "ALL" : req.ScopeType.Trim(),
+            ScopeNodeId = string.IsNullOrWhiteSpace(req.ScopeNodeId) ? null : req.ScopeNodeId.Trim(),
+            ScopeNodeName = string.IsNullOrWhiteSpace(req.ScopeNodeName) ? null : req.ScopeNodeName.Trim(),
+            ScopeNodeRole = string.IsNullOrWhiteSpace(req.ScopeNodeRole) ? null : req.ScopeNodeRole.Trim(),
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         };
@@ -94,7 +102,51 @@ public class UsersController : ControllerBase
             FullName = newUser.FullName,
             Role = newUser.Role,
             BranchAccess = newUser.BranchAccess,
+            ScopeType = newUser.ScopeType,
+            ScopeNodeId = newUser.ScopeNodeId,
+            ScopeNodeName = newUser.ScopeNodeName,
+            ScopeNodeRole = newUser.ScopeNodeRole,
             CreatedAt = newUser.CreatedAt
+        });
+    }
+
+    [HttpPut("{id:int}/permission-scope")]
+    public async Task<ActionResult> UpdatePermissionScope(int id, [FromBody] UpdateUserScopeDto req)
+    {
+        if (!IsAdmin())
+        {
+            return Forbid();
+        }
+
+        var user = await _dbContext.AppUsers.FindAsync(id);
+        if (user == null)
+        {
+            return NotFound(new { message = "Không tìm thấy người dùng." });
+        }
+
+        user.ScopeType = string.IsNullOrWhiteSpace(req.ScopeType) ? "ALL" : req.ScopeType.Trim();
+        user.ScopeNodeId = string.IsNullOrWhiteSpace(req.ScopeNodeId) ? null : req.ScopeNodeId.Trim();
+        user.ScopeNodeName = string.IsNullOrWhiteSpace(req.ScopeNodeName) ? null : req.ScopeNodeName.Trim();
+        user.ScopeNodeRole = string.IsNullOrWhiteSpace(req.ScopeNodeRole) ? null : req.ScopeNodeRole.Trim();
+
+        await _dbContext.SaveChangesAsync();
+
+        return Ok(new
+        {
+            message = "Cập nhật quyền truy cập thành công.",
+            user = new UserDto
+            {
+                Id = user.Id,
+                Username = user.Username,
+                FullName = user.FullName,
+                Role = user.Role,
+                BranchAccess = user.BranchAccess,
+                ScopeType = user.ScopeType,
+                ScopeNodeId = user.ScopeNodeId,
+                ScopeNodeName = user.ScopeNodeName,
+                ScopeNodeRole = user.ScopeNodeRole,
+                CreatedAt = user.CreatedAt
+            }
         });
     }
 

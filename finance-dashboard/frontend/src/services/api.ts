@@ -8,12 +8,19 @@ import {
   UploadResult,
   UserAccount,
   AuthSession,
+  TreeNode,
+  TreeFlatNode,
+  UpdateUserScopeRequest,
+  PermissionPreset,
+  CreatePermissionPresetRequest,
+  BulkAssignScopeRequest,
 } from '../types';
 
 const API_BASE = '/api';
 
 export const api = axios.create({
   baseURL: API_BASE,
+  paramsSerializer: { indexes: null },
 });
 
 // Attach JWT token to all requests if available
@@ -216,13 +223,66 @@ export const dashboardApi = {
     fullName: string;
     role: string;
     branchAccess?: string;
+    scopeType?: string;
+    scopeNodeId?: string;
+    scopeNodeName?: string;
+    scopeNodeRole?: string;
   }): Promise<UserAccount> => {
     const res = await api.post('/users', data);
     return res.data;
   },
 
+  updateUserScope: async (id: number, data: UpdateUserScopeRequest): Promise<any> => {
+    const res = await api.put(`/users/${id}/permission-scope`, data);
+    return res.data;
+  },
+
   deleteUser: async (id: number): Promise<any> => {
     const res = await api.delete(`/users/${id}`);
+    return res.data;
+  },
+
+  // Org tree APIs
+  getOrgTree: async (): Promise<TreeNode[]> => {
+    const res = await api.get('/orgtree');
+    return res.data;
+  },
+
+  getFlatNodes: async (): Promise<TreeFlatNode[]> => {
+    const res = await api.get('/orgtree/nodes');
+    return res.data;
+  },
+
+  getSubordinates: async (scopeType: string, scopeNodeId?: string): Promise<string[]> => {
+    const res = await api.get('/orgtree/subordinates', {
+      params: { scopeType, scopeNodeId }
+    });
+    return res.data;
+  },
+
+  // Permission Presets & Bulk actions
+  getPermissionPresets: async (): Promise<PermissionPreset[]> => {
+    const res = await api.get('/v1/permissions/presets');
+    return res.data;
+  },
+
+  createPermissionPreset: async (data: CreatePermissionPresetRequest): Promise<any> => {
+    const res = await api.post('/v1/permissions/presets', data);
+    return res.data;
+  },
+
+  deletePermissionPreset: async (id: number): Promise<any> => {
+    const res = await api.delete(`/v1/permissions/presets/${id}`);
+    return res.data;
+  },
+
+  bulkAssignScope: async (data: BulkAssignScopeRequest): Promise<any> => {
+    const res = await api.post('/v1/permissions/bulk-assign', data);
+    return res.data;
+  },
+
+  revokeAllPermissions: async (confirmationText: string): Promise<any> => {
+    const res = await api.post('/v1/permissions/revoke-all', { confirmationText });
     return res.data;
   },
 };
