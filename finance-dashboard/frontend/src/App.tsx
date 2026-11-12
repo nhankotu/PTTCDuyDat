@@ -469,7 +469,7 @@ export default function App() {
         </select>
       </label>
       {/* 3. Main Content Area */}
-      <main className="flex-1 max-w-[1600px] mx-auto w-full p-4 sm:p-6 pb-24 space-y-5">
+      <main className="flex-1 max-w-[1600px] mx-auto w-full p-4 sm:p-6 space-y-5">
         {!['users', 'permissions'].includes(activeTab) && <>
           {JSON.stringify(dimensions) !== JSON.stringify(appliedDimensions) && (
             <p role="status" className="text-xs sm:text-sm text-amber-800 font-medium">
@@ -595,12 +595,25 @@ export default function App() {
           JSON.stringify(dimensions) !== JSON.stringify(appliedDimensions);
 
         return (
-          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 max-w-[96vw]">
-            <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 px-3 py-2 rounded-2xl bg-slate-900/95 text-white shadow-2xl border border-slate-700/80 backdrop-blur-md text-xs">
+          <footer className="sticky bottom-0 z-40 w-full bg-[#0b1120]/95 backdrop-blur-md border-t border-slate-800 text-white px-4 sm:px-6 py-2 shadow-[0_-4px_20px_rgba(15,23,42,0.18)]">
+            <div className="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="hidden lg:flex items-center gap-2 text-slate-400">
+                <span className="font-semibold text-slate-300">Thanh tác vụ lọc</span>
+                <span>·</span>
+                <span>Chốt số dư: <strong className="text-emerald-400">{applied.asOfDate}</strong></span>
+                {dateCoverage?.minDate && dateCoverage?.maxDate && (
+                  <>
+                    <span>·</span>
+                    <span>DL có sẵn: <strong className="text-slate-200">{dateCoverage.minDate} → {dateCoverage.maxDate}</strong></span>
+                  </>
+                )}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 ml-auto mr-auto lg:mr-0">
               <button
                 type="button"
                 onClick={() => setFilterModalTab('time')}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold transition cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700/80 text-slate-100 font-semibold transition cursor-pointer"
                 title="Mở cài đặt Thời gian & Bản chốt (Phím T)"
               >
                 <span>📅</span>
@@ -611,7 +624,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setFilterModalTab('scope')}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-100 font-semibold transition cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700/80 text-slate-100 font-semibold transition cursor-pointer"
                 title="Mở cài đặt Phạm vi nhân sự & Sale HĐ (Phím S)"
               >
                 <span>👥</span>
@@ -646,7 +659,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setRefreshKey(n => n + 1)}
-                className="inline-flex items-center justify-center px-2 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 transition cursor-pointer"
+                className="inline-flex items-center justify-center px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700/80 text-slate-200 transition cursor-pointer"
                 title="Làm mới dữ liệu"
                 aria-label="Làm mới dữ liệu"
               >
@@ -656,7 +669,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setHelpOpen(true)}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold transition cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700/80 text-slate-200 font-semibold transition cursor-pointer"
                 title="Hướng dẫn sử dụng & Phím tắt (Phím H hoặc ?)"
                 aria-label="Hướng dẫn sử dụng"
               >
@@ -664,8 +677,9 @@ export default function App() {
                 <span className="hidden md:inline">Hướng dẫn</span>
                 <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono bg-slate-700 text-slate-300 rounded">H</kbd>
               </button>
+              </div>
             </div>
-          </div>
+          </footer>
         );
       })()}
 
