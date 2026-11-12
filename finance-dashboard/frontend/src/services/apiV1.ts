@@ -11,6 +11,7 @@ import {
   ImportPreviewResponse,
   ImportConfirmResponse,
   AccessRequestItem,
+  DateCoverageResponse,
 } from '../types/v1';
 
 export const apiV1 = {
@@ -55,6 +56,15 @@ export const apiV1 = {
     view?: 'self' | 'subtree';
   }): Promise<PivotItem[]> => {
     const { data } = await api.get<PivotItem[]>('/v1/reports/pivot', { params });
+    return data;
+  },
+
+  getDateCoverage: async (params: {
+    datasetId?: string;
+    viewEmployeeId?: string;
+    view?: 'self' | 'subtree';
+  }): Promise<DateCoverageResponse> => {
+    const { data } = await api.get<DateCoverageResponse>('/v1/reports/date-coverage', { params });
     return data;
   },
 

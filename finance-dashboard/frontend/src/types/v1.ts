@@ -207,3 +207,19 @@ export interface ContractFilters {
   changedSale?: boolean;
   sort?: string;
 }
+
+export interface DateCoverageMonth {
+  monthKey: string;
+  label: string;
+  fromDate: string;
+  toDate: string;
+  contractCount: number;
+}
+
+export interface DateCoverageResponse {
+  minDate?: string | null;
+  maxDate?: string | null;
+  latestMonth?: string | null;
+  totalContracts: number;
+  months: DateCoverageMonth[];
+}

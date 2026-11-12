@@ -87,6 +87,19 @@ public class ReportsController : ControllerBase
         return Ok(list);
     }
 
+    [HttpGet("date-coverage")]
+    public async Task<ActionResult<DateCoverageResponse>> GetDateCoverage(
+        [FromQuery] Guid? datasetId = null,
+        [FromQuery] string? viewEmployeeId = null,
+        [FromQuery] string view = "subtree")
+    {
+        var userId = GetCurrentUserId();
+        if (!userId.HasValue) return Unauthorized();
+
+        var res = await _reportingService.GetDateCoverageAsync(userId.Value, datasetId, viewEmployeeId, view);
+        return Ok(res);
+    }
+
     private static (DateOnly Start, DateOnly End, DateOnly AsOf) ParseDates(
         string? fromDate, string? toDate, string? asOfDate)
     {

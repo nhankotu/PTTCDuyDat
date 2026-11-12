@@ -15,7 +15,7 @@ import { PermissionsPage } from './components/PermissionsPage';
 import { apiV1 } from './services/apiV1';
 import { dashboardApi } from './services/api';
 import { AuthSession } from './types';
-import { KpiReportResponse, ReportView, ViewScopeNode, DimensionFilters } from './types/v1';
+import { KpiReportResponse, ReportView, ViewScopeNode, DimensionFilters, DateCoverageResponse } from './types/v1';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthSession | null>(() => {
@@ -71,6 +71,9 @@ export default function App() {
   const [applied, setApplied] = useState({ fromDate, toDate, asOfDate, datasetId: selectedDatasetId });
   const [refreshKey, setRefreshKey] = useState(0);
   const [dateError, setDateError] = useState<string | null>(null);
+  const [dateCoverage, setDateCoverage] = useState<DateCoverageResponse | null>(null);
+  const [autoAdjustedNotice, setAutoAdjustedNotice] = useState<string | null>(null);
+  const hasAutoAdjustedRef = useRef(false);
   const requestId = useRef(0);
   const selectionRequest = useRef(0);
   const reportKey = JSON.stringify([applied, appliedDimensions, reportView, refreshKey, currentUser?.username]);
@@ -205,7 +208,47 @@ export default function App() {
     setFromDate(start);
     setToDate(end);
     setAsOfDate(end);
+    setAutoAdjustedNotice(null);
   };
+
+  const applyDateRangeNow = (start: string, end: string, asOf?: string, notice?: string | null) => {
+    const targetAsOf = asOf || end;
+    setDateError(null);
+    setFromDate(start);
+    setToDate(end);
+    setAsOfDate(targetAsOf);
+    setAutoAdjustedNotice(notice ?? null);
+    setApplied({ fromDate: start, toDate: end, asOfDate: targetAsOf, datasetId: selectedDatasetId });
+  };
+
+  useEffect(() => {
+    if (!currentUser) return;
+    let active = true;
+    apiV1.getDateCoverage({
+      datasetId: selectedDatasetId || undefined,
+      ...reportView
+    }).then(cov => {
+      if (!active) return;
+      setDateCoverage(cov);
+      if (!hasAutoAdjustedRef.current && cov.months.length > 0) {
+        hasAutoAdjustedRef.current = true;
+        const currentMonthKey = fromDate.slice(0, 7);
+        if (!cov.months.some(m => m.monthKey === currentMonthKey)) {
+          const latest = cov.months[0];
+          const targetAsOf = cov.maxDate && cov.maxDate < latest.toDate ? cov.maxDate : latest.toDate;
+          applyDateRangeNow(
+            latest.fromDate,
+            latest.toDate,
+            targetAsOf,
+            `Tháng hiện tại chưa có dữ liệu — đang tự động hiển thị tháng có dữ liệu gần nhất (${latest.label}).`
+          );
+        }
+      }
+    }).catch(() => {
+      if (active) setDateCoverage(null);
+    });
+    return () => { active = false; };
+  }, [currentUser, selectedDatasetId, reportView.viewEmployeeId, reportView.view, refreshKey]);
 
   if (!currentUser) {
     return (
@@ -390,7 +433,7 @@ export default function App() {
       <div className="bg-white border-b border-slate-200/90 px-6 py-3 shadow-xs">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3 text-xs">
           {/* Quick Date Presets */}
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-1.5">
             <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1">Kỳ:</span>
             <button
               onClick={() => applyPreset('today')}
@@ -422,6 +465,49 @@ export default function App() {
             >
               Cả năm
             </button>
+            {dateCoverage && dateCoverage.months.length > 0 && (
+              <>
+                <button
+                  onClick={() => {
+                    const latest = dateCoverage.months[0];
+                    const targetAsOf = dateCoverage.maxDate && dateCoverage.maxDate < latest.toDate ? dateCoverage.maxDate : latest.toDate;
+                    applyDateRangeNow(latest.fromDate, latest.toDate, targetAsOf);
+                  }}
+                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
+                  title={`Nhảy nhanh tới tháng ${dateCoverage.months[0].label} (${dateCoverage.months[0].contractCount} HĐ)`}
+                >
+                  Tháng có DL gần nhất ({dateCoverage.months[0].label})
+                </button>
+                {dateCoverage.minDate && dateCoverage.maxDate && (
+                  <button
+                    onClick={() => applyDateRangeNow(dateCoverage.minDate!, dateCoverage.maxDate!, dateCoverage.maxDate!)}
+                    className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 transition cursor-pointer"
+                    title={`Xem toàn bộ từ ${dateCoverage.minDate} đến ${dateCoverage.maxDate}`}
+                  >
+                    Toàn bộ DL
+                  </button>
+                )}
+                <select
+                  aria-label="Chọn nhanh tháng có dữ liệu"
+                  value={dateCoverage.months.find(m => m.fromDate === fromDate && m.toDate === toDate)?.monthKey || ''}
+                  onChange={(e) => {
+                    const m = dateCoverage.months.find(x => x.monthKey === e.target.value);
+                    if (m) {
+                      const targetAsOf = dateCoverage.maxDate && dateCoverage.maxDate < m.toDate ? dateCoverage.maxDate : m.toDate;
+                      applyDateRangeNow(m.fromDate, m.toDate, targetAsOf);
+                    }
+                  }}
+                  className="border border-emerald-200 bg-emerald-50/50 text-emerald-900 rounded-lg px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                >
+                  <option value="">Tháng có DL ({dateCoverage.months.length})…</option>
+                  {dateCoverage.months.map(m => (
+                    <option key={m.monthKey} value={m.monthKey}>
+                      Tháng {m.label} ({m.contractCount} HĐ)
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
           </div>
 
           {/* Date Pickers */}
@@ -518,8 +604,39 @@ export default function App() {
             </p>
           )}
           {dateError && <p role="alert" className="text-rose-700">{dateError}</p>}
+          {autoAdjustedNotice && (
+            <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs sm:text-sm text-emerald-900">
+              <span>✨ {autoAdjustedNotice}</span>
+              <button onClick={() => setAutoAdjustedNotice(null)} className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer">Đã hiểu</button>
+            </div>
+          )}
+          {!kpiLoading && kpiData && kpiData.metrics.totalContracts === 0 && dateCoverage && dateCoverage.months.length > 0 && (
+            <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs sm:text-sm text-amber-900">
+              <span>Khoảng thời gian đang chọn ({applied.fromDate} → {applied.toDate}) không có hợp đồng phát sinh.</span>
+              <button
+                onClick={() => {
+                  const latest = dateCoverage.months[0];
+                  const targetAsOf = dateCoverage.maxDate && dateCoverage.maxDate < latest.toDate ? dateCoverage.maxDate : latest.toDate;
+                  applyDateRangeNow(latest.fromDate, latest.toDate, targetAsOf);
+                }}
+                className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold transition cursor-pointer"
+              >
+                Chuyển tới tháng có DL gần nhất ({dateCoverage.months[0].label})
+              </button>
+            </div>
+          )}
           {(fromDate !== applied.fromDate || toDate !== applied.toDate || asOfDate !== applied.asOfDate || selectedDatasetId !== applied.datasetId) && <p role="status" className="text-sm text-amber-800">Bộ lọc có thay đổi chưa áp dụng. Bấm “Áp dụng” để cập nhật báo cáo.</p>}
-          <div className="flex justify-between gap-2 text-sm text-slate-600"><span>Kỳ đã áp dụng: {applied.fromDate} → {applied.toDate} · Chốt số dư: {applied.asOfDate}</span><button onClick={() => setRefreshKey(n => n + 1)} className="text-blue-700 font-semibold shrink-0">Làm mới dữ liệu</button></div>
+          <div className="flex flex-wrap justify-between gap-2 text-sm text-slate-600">
+            <span>
+              Kỳ đã áp dụng: {applied.fromDate} → {applied.toDate} · Chốt số dư: {applied.asOfDate}
+              {dateCoverage?.minDate && dateCoverage?.maxDate && (
+                <span className="ml-2 text-xs text-slate-500">
+                  (Dữ liệu hiện có: <strong>{dateCoverage.minDate}</strong> → <strong>{dateCoverage.maxDate}</strong> · {dateCoverage.totalContracts} HĐ)
+                </span>
+              )}
+            </span>
+            <button onClick={() => setRefreshKey(n => n + 1)} className="text-blue-700 font-semibold shrink-0 cursor-pointer">Làm mới dữ liệu</button>
+          </div>
         </>}
 
         {activeTab === 'kpi_v1' && (

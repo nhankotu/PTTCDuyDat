@@ -128,3 +128,21 @@ public class ManifestItemRequest
     public bool IsConfirmedNoMovement { get; set; }
     public string? Notes { get; set; }
 }
+
+public class DateCoverageMonthDto
+{
+    public string MonthKey { get; set; } = string.Empty;
+    public string Label { get; set; } = string.Empty;
+    public string FromDate { get; set; } = string.Empty;
+    public string ToDate { get; set; } = string.Empty;
+    public int ContractCount { get; set; }
+}
+
+public class DateCoverageResponse
+{
+    public string? MinDate { get; set; }
+    public string? MaxDate { get; set; }
+    public string? LatestMonth { get; set; }
+    public int TotalContracts { get; set; }
+    public List<DateCoverageMonthDto> Months { get; set; } = new();
+}

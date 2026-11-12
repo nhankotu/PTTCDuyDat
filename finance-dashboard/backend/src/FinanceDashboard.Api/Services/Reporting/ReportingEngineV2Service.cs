@@ -940,4 +940,132 @@ public class ReportingEngineV2Service
 
         return list;
     }
+
+    public async Task<DateCoverageResponse> GetDateCoverageAsync(
+        int userId,
+        Guid? datasetId = null,
+        string? viewEmployeeId = null,
+        string view = "subtree")
+    {
+        var scope = await _scopeService.GetReportScopeAsync(userId, viewEmployeeId, view, datasetId);
+        if (!scope.CanAccessAll && scope.RevenueScope.Count == 0 && scope.BalanceScope.Count == 0)
+            return new DateCoverageResponse();
+
+        using var connection = _db.CreateNpgsqlConnection();
+        await connection.OpenAsync();
+
+        List<long> manifestBatches = new();
+        if (datasetId.HasValue)
+        {
+            var dataset = await connection.QueryFirstOrDefaultAsync<ReportDataset>(
+                "SELECT * FROM report_dataset WHERE id = @DatasetId;", new { DatasetId = datasetId.Value });
+            if (dataset == null || !dataset.IsPublished)
+                return new DateCoverageResponse();
+
+            manifestBatches = (await connection.QueryAsync<long?>(
+                "SELECT source_batch_id FROM dataset_source_manifest WHERE dataset_id = @DatasetId AND source_batch_id IS NOT NULL;",
+                new { DatasetId = datasetId.Value })).Where(b => b.HasValue).Select(b => b!.Value).ToList();
+
+            if (manifestBatches.Count == 0)
+                return new DateCoverageResponse();
+        }
+
+        string manifestOrActiveClause = datasetId.HasValue
+            ? "AND c.batch_id = ANY(@ManifestBatches)"
+            : "AND c.is_active_version = TRUE";
+
+        string[] allowedUpper = scope.RevenueScope
+            .Union(scope.BalanceScope, StringComparer.OrdinalIgnoreCase)
+            .Select(s => s.Trim().ToUpperInvariant())
+            .Where(s => !string.IsNullOrEmpty(s))
+            .Distinct()
+            .ToArray();
+
+        if (!scope.CanAccessAll && allowedUpper.Length == 0)
+            return new DateCoverageResponse();
+
+        string scopeClause = scope.CanAccessAll
+            ? ""
+            : "WHERE UPPER(TRIM(COALESCE(effective_sale_id, ''))) = ANY(@AllowedUpper)";
+
+        var sql = $@"
+            WITH active_contracts AS (
+                SELECT DISTINCT ON (c.appendix_number)
+                    c.appendix_number,
+                    c.sign_date,
+                    COALESCE(e.new_sale_id, c.sale_id) AS effective_sale_id
+                FROM contract_appendix_version c
+                LEFT JOIN contract_exception_version e
+                       ON e.appendix_number = c.appendix_number
+                      AND e.is_active_version = TRUE
+                WHERE c.sign_date IS NOT NULL
+                  AND c.status IN ('APPROVED', 'LIQUIDATED')
+                  AND c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract)
+                  {manifestOrActiveClause}
+                ORDER BY c.appendix_number, c.version_num DESC
+            ),
+            scoped_contracts AS (
+                SELECT sign_date
+                FROM active_contracts
+                {scopeClause}
+            )
+            SELECT
+                TO_CHAR(sign_date, 'YYYY-MM') AS month_key,
+                MIN(sign_date) AS min_sign_date,
+                MAX(sign_date) AS max_sign_date,
+                COUNT(*)::int AS contract_count
+            FROM scoped_contracts
+            GROUP BY TO_CHAR(sign_date, 'YYYY-MM')
+            ORDER BY month_key DESC;";
+
+        var rows = (await connection.QueryAsync<dynamic>(sql, new
+        {
+            ManifestBatches = manifestBatches.ToArray(),
+            AllowedUpper = allowedUpper
+        })).ToList();
+
+        if (rows.Count == 0)
+            return new DateCoverageResponse();
+
+        var months = new List<DateCoverageMonthDto>();
+        string? minDate = null;
+        string? maxDate = null;
+        int totalContracts = 0;
+
+        foreach (var r in rows)
+        {
+            string monthKey = (string)r.month_key;
+            string? rowMin = FormatDate(r.min_sign_date);
+            string? rowMax = FormatDate(r.max_sign_date);
+            int count = (int)r.contract_count;
+            totalContracts += count;
+
+            if (rowMin != null && (minDate == null || string.CompareOrdinal(rowMin, minDate) < 0)) minDate = rowMin;
+            if (rowMax != null && (maxDate == null || string.CompareOrdinal(rowMax, maxDate) > 0)) maxDate = rowMax;
+
+            var parts = monthKey.Split('-');
+            if (parts.Length == 2 && int.TryParse(parts[0], out int yr) && int.TryParse(parts[1], out int mo))
+            {
+                var firstDay = new DateOnly(yr, mo, 1);
+                var lastDay = new DateOnly(yr, mo, DateTime.DaysInMonth(yr, mo));
+                months.Add(new DateCoverageMonthDto
+                {
+                    MonthKey = monthKey,
+                    Label = $"{mo:D2}/{yr}",
+                    FromDate = firstDay.ToString("yyyy-MM-dd"),
+                    ToDate = lastDay.ToString("yyyy-MM-dd"),
+                    ContractCount = count
+                });
+            }
+        }
+
+        return new DateCoverageResponse
+        {
+            MinDate = minDate,
+            MaxDate = maxDate,
+            LatestMonth = months.FirstOrDefault()?.MonthKey,
+            TotalContracts = totalContracts,
+            Months = months
+        };
+    }
 }
