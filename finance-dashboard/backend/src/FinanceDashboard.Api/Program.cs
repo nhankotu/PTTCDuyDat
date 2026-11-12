@@ -121,6 +121,20 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
+await SchemaBootstrap.EnsureSyncedAsync(app.Services);
+
+// Ensure unhandled exceptions preserve CORS headers and return JSON instead of empty 500
+app.UseExceptionHandler(errorApp =>
+{
+    errorApp.UseCors("AllowAll");
+    errorApp.Run(async context =>
+    {
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "application/json";
+        await context.Response.WriteAsJsonAsync(new { message = "Đã xảy ra lỗi hệ thống trên máy chủ." });
+    });
+});
+
 // Enable Swagger in both Dev and Prod for local Docker
 app.UseSwagger();
 app.UseSwaggerUI(c =>

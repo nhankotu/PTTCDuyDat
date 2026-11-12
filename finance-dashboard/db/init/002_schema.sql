@@ -185,5 +185,5 @@ CREATE INDEX IF NOT EXISTS ix_refresh_token_val ON user_refresh_token(token);
 
 -- Seed tài khoản mặc định: admin / admin123
 INSERT INTO app_user (username, password_hash, full_name, role)
-VALUES ('admin', '$2a$11$q9hI6hZ7WpA2R7iT4TfNq.OvhH6V9m3L.s2kHkG7R/d0eK9i3lH8C', 'System Administrator', 'admin')
+VALUES ('admin', '$2a$11$5i3IrMPdu15AK.CypuDGVuVmO5oEjTCW.7TJLDCrnTwl978ifJ8we', 'System Administrator', 'admin')
 ON CONFLICT (username) DO NOTHING;
