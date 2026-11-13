@@ -15,6 +15,8 @@ public class KpiMetricsDto
     public int? TotalContracts { get; set; }
     public string? AvgSizePerContract { get; set; }
     public string? AvgSizePerCustomer { get; set; }
+    public int? NewCustomers { get; set; }
+    public int? CumulativeCustomers { get; set; }
 }
 
 public class AccessInfoDto
@@ -82,6 +84,7 @@ public class ContractDetailItemDto
     public string? ContractValue { get; set; }
     public string? SettledAmount { get; set; }
     public string? Balance { get; set; }
+    public bool IsGhost { get; set; }
 }
 
 public class StockReportResponse

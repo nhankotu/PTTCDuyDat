@@ -11,6 +11,8 @@ export interface KpiMetrics {
   totalContracts: number | null;
   avgSizePerContract: string | null;
   avgSizePerCustomer: string | null;
+  newCustomers?: number | null;
+  cumulativeCustomers?: number | null;
 }
 
 export interface AccessInfo {
@@ -66,6 +68,7 @@ export interface ContractDetailItem {
   contractValue: string | null;
   settledAmount: string | null;
   balance: string | null;
+  isGhost?: boolean;
 }
 
 export interface StockContractItem {

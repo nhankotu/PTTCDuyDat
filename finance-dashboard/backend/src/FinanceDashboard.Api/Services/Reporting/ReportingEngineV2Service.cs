@@ -168,6 +168,13 @@ public class ReportingEngineV2Service
                       AND c.sign_date >= @FromDate AND c.sign_date <= @ToDate
                       AND c.valid_from <= @ToDate AND c.valid_to > @FromDate
                       AND c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract)
+                      AND (
+                        CASE
+                          WHEN c.status = 'LIQUIDATED' AND c.liquidate_date IS NOT NULL
+                            THEN (c.liquidate_date - c.sign_date) > 10
+                          ELSE (CURRENT_DATE - c.sign_date) > 10
+                        END
+                      )
                       {manifestClause}
                       {ReportFilters.Clause}
                       {(string.IsNullOrEmpty(filterProduct) ? "" : "AND c.product_name = @FilterProduct ")}
@@ -200,6 +207,56 @@ public class ReportingEngineV2Service
             }
         }
 
+        // 1b. New Customers (Mục 2): KH có HĐ sản phẩm khác Safe, >= 1Tr, lần đầu trong kỳ
+        int newCustomers = 0;
+        if (hasRevAccess)
+        {
+            var newCustSql = $@"
+                WITH resolved_contracts AS (
+                    SELECT DISTINCT ON (c.appendix_number)
+                        c.appendix_number,
+                        c.customer_code,
+                        c.contract_value,
+                        c.product_name,
+                        c.sign_date,
+                        COALESCE(e.new_sale_id, c.sale_id) AS effective_sale_id
+                    FROM contract_appendix_version c
+                    LEFT JOIN contract_exception_version e 
+                           ON e.appendix_number = c.appendix_number 
+                          AND e.effective_date <= @ToDate
+                          AND (e.expire_date IS NULL OR e.expire_date > @ToDate)
+                    WHERE c.status IN ('APPROVED', 'LIQUIDATED')
+                      AND c.sign_date >= @FromDate AND c.sign_date <= @ToDate
+                      AND c.valid_from <= @ToDate AND c.valid_to > @FromDate
+                      AND c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract)
+                      AND UPPER(c.product_name) NOT LIKE '%SAFE%'
+                      AND c.contract_value >= 1000000
+                      {manifestClause}
+                      {scopeRevClause}
+                    ORDER BY c.appendix_number, c.version_num DESC
+                )
+                SELECT COUNT(DISTINCT rc.customer_code) AS NewCustomers
+                FROM resolved_contracts rc
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM contract_appendix_version old
+                    WHERE UPPER(TRIM(old.customer_code)) = UPPER(TRIM(rc.customer_code))
+                      AND old.sign_date < @FromDate
+                      AND UPPER(old.product_name) NOT LIKE '%SAFE%'
+                      AND old.contract_value >= 1000000
+                      AND old.status IN ('APPROVED', 'LIQUIDATED')
+                      AND old.is_active_version = TRUE
+                );";
+
+            newCustomers = await connection.ExecuteScalarAsync<int>(newCustSql, new
+            {
+                FromDate = fromDate,
+                ToDate = toDate,
+                FilterEmployeeId = filterEmployeeId,
+                RevScope = revScopeList.ToArray(),
+                ManifestBatches = manifestBatches.ToArray()
+            });
+        }
+
         // 2. Total Balance (Scope = BalanceScope, as of targetAsOf - R05: Immutability via valid_from / valid_to)
         decimal totalBalance = 0m;
         bool hasBalAccess = scope.CanAccessAll || balScopeList.Count > 0;
@@ -222,6 +279,7 @@ public class ReportingEngineV2Service
                     WHERE c.status IN ('APPROVED', 'LIQUIDATED')
                       AND c.sign_date <= @AsOfDate
                       AND c.valid_from <= @AsOfDate AND c.valid_to > @AsOfDate
+                      AND c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract)
                       {manifestClause}
                       {ReportFilters.Clause}
                       {(string.IsNullOrEmpty(filterProduct) ? "" : "AND c.product_name = @FilterProduct ")}
@@ -245,6 +303,61 @@ public class ReportingEngineV2Service
                 LEFT JOIN settlements s ON s.appendix_number = rc.appendix_number;";
 
             totalBalance = await connection.ExecuteScalarAsync<decimal>(balanceSql, filters.Bind(new
+            {
+                AsOfDate = targetAsOf,
+                FilterProduct = filterProduct,
+                FilterTerm = filterTerm,
+                FilterEmployeeId = filterEmployeeId,
+                BalScope = balScopeList.ToArray(),
+                ManifestBatches = manifestBatches.ToArray()
+            }, scope));
+        }
+
+        // 3. Cumulative Customers (Mục 3): Unique KH có số dư > 0 tại asOfDate
+        int cumulativeCustomers = 0;
+        if (hasBalAccess)
+        {
+            var cumCustSql = $@"
+                WITH resolved_contracts AS (
+                    SELECT DISTINCT ON (c.appendix_number)
+                        c.appendix_number,
+                        c.customer_code,
+                        c.contract_value,
+                        c.liquidated_amount,
+                        c.liquidate_date,
+                        COALESCE(e.new_sale_id, c.sale_id) AS effective_sale_id
+                    FROM contract_appendix_version c
+                    LEFT JOIN contract_exception_version e 
+                           ON e.appendix_number = c.appendix_number 
+                          AND e.effective_date <= @AsOfDate
+                          AND (e.expire_date IS NULL OR e.expire_date > @AsOfDate)
+                    WHERE c.status IN ('APPROVED', 'LIQUIDATED')
+                      AND c.sign_date <= @AsOfDate
+                      AND c.valid_from <= @AsOfDate AND c.valid_to > @AsOfDate
+                      AND c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract)
+                      {manifestClause}
+                      {ReportFilters.Clause}
+                      {scopeBalClause}
+                    ORDER BY c.appendix_number, c.version_num DESC
+                ),
+                settlements AS (
+                    SELECT 
+                        appendix_number,
+                        SUM(settlement_amount) AS total_settled
+                    FROM contract_settlement_transaction
+                    WHERE is_active_version = TRUE
+                      AND settlement_date <= @AsOfDate
+                      {manifestSettleClause}
+                    GROUP BY appendix_number
+                ),
+                with_balance AS (
+                    SELECT rc.customer_code, {ReportFilters.BalanceExpr("rc", "s")} AS balance
+                    FROM resolved_contracts rc
+                    LEFT JOIN settlements s ON s.appendix_number = rc.appendix_number
+                )
+                SELECT COUNT(DISTINCT customer_code) FROM with_balance WHERE balance > 0;";
+
+            cumulativeCustomers = await connection.ExecuteScalarAsync<int>(cumCustSql, filters.Bind(new
             {
                 AsOfDate = targetAsOf,
                 FilterProduct = filterProduct,
@@ -280,7 +393,9 @@ public class ReportingEngineV2Service
                 TotalContracts = hasRevAccess ? totalContracts : null,
                 TotalCustomers = hasRevAccess ? totalCustomers : null,
                 AvgSizePerContract = hasRevAccess ? avgPerContract.ToString("F2", CultureInfo.InvariantCulture) : null,
-                AvgSizePerCustomer = hasRevAccess ? avgPerCustomer.ToString("F2", CultureInfo.InvariantCulture) : null
+                AvgSizePerCustomer = hasRevAccess ? avgPerCustomer.ToString("F2", CultureInfo.InvariantCulture) : null,
+                NewCustomers = hasRevAccess ? newCustomers : null,
+                CumulativeCustomers = hasBalAccess ? cumulativeCustomers : null
             },
             Access = new AccessInfoDto
             {
@@ -422,6 +537,7 @@ public class ReportingEngineV2Service
                       AND (e.expire_date IS NULL OR e.expire_date > @ToDate)
                 WHERE c.status IN ('APPROVED', 'LIQUIDATED')
                   AND c.valid_from <= @ToDate AND c.valid_to > @FromDate
+                  AND c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract)
                   {manifestClause}
                   {ReportFilters.Clause}
                 ORDER BY c.appendix_number, c.version_num DESC
@@ -442,12 +558,30 @@ public class ReportingEngineV2Service
                 BOOL_OR(@AllAccess OR rc.effective_sale_id = ANY(@RevScope)) AS HasRevenueAccess,
                 BOOL_OR(@AllAccess OR rc.effective_sale_id = ANY(@BalScope)) AS HasBalanceAccess,
                 COALESCE(SUM(CASE WHEN rc.sign_date >= @FromDate AND rc.sign_date <= @ToDate {revFilter}
+                                  AND (
+                                    CASE
+                                      WHEN rc.liquidate_date IS NOT NULL THEN (rc.liquidate_date - rc.sign_date) > 10
+                                      ELSE (CURRENT_DATE - rc.sign_date) > 10
+                                    END
+                                  )
                                   THEN rc.contract_value ELSE 0 END), 0) AS TotalSales,
                 COALESCE(SUM(CASE WHEN rc.sign_date <= @AsOfDate {balFilter}
                                   THEN {ReportFilters.BalanceExpr("rc", "s")} ELSE 0 END), 0) AS TotalBalance,
                 COUNT(DISTINCT CASE WHEN rc.sign_date >= @FromDate AND rc.sign_date <= @ToDate {revFilter}
+                                    AND (
+                                      CASE
+                                        WHEN rc.liquidate_date IS NOT NULL THEN (rc.liquidate_date - rc.sign_date) > 10
+                                        ELSE (CURRENT_DATE - rc.sign_date) > 10
+                                      END
+                                    )
                                     THEN rc.appendix_number END) AS ContractCount,
                 COUNT(DISTINCT CASE WHEN rc.sign_date >= @FromDate AND rc.sign_date <= @ToDate {revFilter}
+                                    AND (
+                                      CASE
+                                        WHEN rc.liquidate_date IS NOT NULL THEN (rc.liquidate_date - rc.sign_date) > 10
+                                        ELSE (CURRENT_DATE - rc.sign_date) > 10
+                                      END
+                                    )
                                     THEN rc.customer_code END) AS CustomerCount
             FROM resolved_contracts rc
             LEFT JOIN settlements s ON s.appendix_number = rc.appendix_number
@@ -576,7 +710,7 @@ public class ReportingEngineV2Service
                       AND e.effective_date <= @AsOfDate
                       AND (e.expire_date IS NULL OR e.expire_date > @AsOfDate)
                 WHERE c.status IN ('APPROVED', 'LIQUIDATED')
-                  {(filters.Basis == "balance" ? "AND c.sign_date <= @AsOfDate" : "AND c.sign_date >= @FromDate AND c.sign_date <= @ToDate AND c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract)")}
+                  {(filters.Basis == "balance" ? "AND c.sign_date <= @AsOfDate" : "AND c.sign_date >= @FromDate AND c.sign_date <= @ToDate")}
                   AND c.valid_from <= @AsOfDate AND c.valid_to > @AsOfDate
                   {manifestClause}
                   {ReportFilters.Clause}
@@ -598,9 +732,11 @@ public class ReportingEngineV2Service
             /* contract_page */ SELECT 
                 r.*,
                 {ReportFilters.SettledExpr("r", "s")} AS settled_amount,
-                {ReportFilters.BalanceExpr("r", "s")} AS balance
+                {ReportFilters.BalanceExpr("r", "s")} AS balance,
+                (ex.appendix_number IS NOT NULL) AS is_ghost
             FROM resolved r
             LEFT JOIN settlements s ON s.appendix_number = r.appendix_number
+            LEFT JOIN excluded_contract ex ON ex.appendix_number = r.appendix_number
             {ReportFilters.BalanceClause}
             ORDER BY {filters.OrderBy}
             OFFSET @Offset LIMIT @Limit;";
@@ -658,7 +794,8 @@ public class ReportingEngineV2Service
                 // R07: Mask per individual row access
                 ContractValue = rowHasRev ? val.ToString("F2", CultureInfo.InvariantCulture) : null,
                 SettledAmount = rowHasRev && rowHasBal ? settled.ToString("F2", CultureInfo.InvariantCulture) : null,
-                Balance = rowHasBal ? bal.ToString("F2", CultureInfo.InvariantCulture) : null
+                Balance = rowHasBal ? bal.ToString("F2", CultureInfo.InvariantCulture) : null,
+                IsGhost = (bool)(r.is_ghost ?? false)
             });
         }
 
@@ -770,6 +907,33 @@ public class ReportingEngineV2Service
                 SaleId = r.SaleId
             }).ToList()
         };
+    }
+
+    public async Task<bool> MarkGhostContractAsync(string appendixNumber)
+    {
+        appendixNumber = appendixNumber.Trim();
+        using var connection = _db.CreateNpgsqlConnection();
+        await connection.OpenAsync();
+        var exists = await connection.ExecuteScalarAsync<int>(
+            "SELECT COUNT(1) FROM excluded_contract WHERE UPPER(TRIM(appendix_number)) = UPPER(@appNo);",
+            new { appNo = appendixNumber });
+        if (exists > 0) return true;
+
+        await connection.ExecuteAsync(
+            "INSERT INTO excluded_contract (batch_id, appendix_number) VALUES (0, @appNo);",
+            new { appNo = appendixNumber });
+        return true;
+    }
+
+    public async Task<bool> UnmarkGhostContractAsync(string appendixNumber)
+    {
+        appendixNumber = appendixNumber.Trim();
+        using var connection = _db.CreateNpgsqlConnection();
+        await connection.OpenAsync();
+        var affected = await connection.ExecuteAsync(
+            "DELETE FROM excluded_contract WHERE UPPER(TRIM(appendix_number)) = UPPER(@appNo);",
+            new { appNo = appendixNumber });
+        return affected > 0;
     }
 
     public Task RecordExportAsync(int userId, string? nodeId, string view, Guid? datasetId)

@@ -14,6 +14,7 @@ interface Props extends ReportView, DimensionFilters {
 
 export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datasetId, viewEmployeeId, view, products, terms, channels, statuses, compact, onDrillDown }) => {
   const [period, setPeriod] = useState<'day' | 'week' | 'month' | 'quarter'>('week');
+  const [chartViewMode, setChartViewMode] = useState<'combined' | 'split'>('split');
   const [weekMode, setWeekMode] = useState<'standard' | 'business4week' | 'custom'>(() => {
     return (localStorage.getItem('finra_week_mode') as any) || 'standard';
   });
@@ -155,6 +156,15 @@ export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datase
         nameTextStyle: { color: '#64748b', fontSize: 11, padding: [0, 0, 4, 0] },
         axisLine: { show: false },
         splitLine: { show: false },
+        scale: true,
+        min: (value: { min: number }) => {
+          const pad = Math.max((value.min) * 0.05, 1);
+          return Math.floor(value.min - pad);
+        },
+        max: (value: { max: number }) => {
+          const pad = Math.max((value.max) * 0.05, 1);
+          return Math.ceil(value.max + pad);
+        },
         axisLabel: {
           color: '#64748b',
           fontSize: 11,
@@ -184,6 +194,126 @@ export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datase
         name: 'Số dư tại cuối mốc',
         type: 'line',
         yAxisIndex: 1,
+        smooth: true,
+        showSymbol: true,
+        symbolSize: 8,
+        lineStyle: { width: 3.5, color: '#10b981' },
+        itemStyle: { color: '#10b981', borderColor: '#ffffff', borderWidth: 2 },
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: 'rgba(16, 185, 129, 0.25)' },
+              { offset: 1, color: 'rgba(16, 185, 129, 0.0)' },
+            ],
+          },
+        },
+        data: trendData.map((t) => t.totalBalance === null ? null : parseFloat(t.totalBalance)),
+      },
+    ],
+  };
+
+  // Dedicated Sales Chart (when in split mode)
+  const salesOption = {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      backgroundColor: '#0f172a',
+      borderColor: '#334155',
+      textStyle: { color: '#f8fafc', fontSize: 12 },
+      formatter: (params: any) => {
+        const item = params[0];
+        const val = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(item?.value || 0);
+        return `<div style="font-weight:700;margin-bottom:4px;color:#94a3b8">${item?.axisValue || ''}</div><div style="color:#60a5fa;font-weight:bold">${item?.seriesName}: ${val}</div>`;
+      },
+    },
+    grid: { left: '3%', right: '3%', top: '15%', bottom: '12%', containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: trendData.map((t) => t.periodLabel),
+      axisLine: { lineStyle: { color: '#e2e8f0' } },
+      axisLabel: { color: '#64748b', fontSize: 11, fontWeight: 500 },
+    },
+    yAxis: {
+      type: 'value',
+      name: 'Doanh số',
+      nameTextStyle: { color: '#64748b', fontSize: 11 },
+      splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
+      axisLabel: {
+        color: '#64748b',
+        fontSize: 11,
+        formatter: (v: number) => (v >= 1e9 ? `${(v / 1e9).toFixed(1)} Tỷ` : `${(v / 1e6).toFixed(0)} Tr`),
+      },
+    },
+    series: [
+      {
+        name: 'Doanh số phát sinh',
+        type: 'bar',
+        barMaxWidth: 36,
+        itemStyle: {
+          borderRadius: [6, 6, 0, 0],
+          color: {
+            type: 'linear',
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: '#3b82f6' },
+              { offset: 1, color: '#1d4ed8' },
+            ],
+          },
+        },
+        data: trendData.map((t) => t.totalSales === null ? null : parseFloat(t.totalSales)),
+      },
+    ],
+  };
+
+  // Dedicated Balance Chart (when in split mode - with dynamic zoomed axis)
+  const balanceOption = {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'line', lineStyle: { color: '#10b981', type: 'dashed' } },
+      backgroundColor: '#0f172a',
+      borderColor: '#334155',
+      textStyle: { color: '#f8fafc', fontSize: 12 },
+      formatter: (params: any) => {
+        const item = params[0];
+        const val = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(item?.value || 0);
+        return `<div style="font-weight:700;margin-bottom:4px;color:#94a3b8">${item?.axisValue || ''}</div><div style="color:#34d399;font-weight:bold">${item?.seriesName}: ${val}</div>`;
+      },
+    },
+    grid: { left: '3%', right: '3%', top: '15%', bottom: '12%', containLabel: true },
+    xAxis: {
+      type: 'category',
+      data: trendData.map((t) => t.periodLabel),
+      axisLine: { lineStyle: { color: '#e2e8f0' } },
+      axisLabel: { color: '#64748b', fontSize: 11, fontWeight: 500 },
+    },
+    yAxis: {
+      type: 'value',
+      name: 'Số dư cuối mốc',
+      scale: true,
+      min: (value: { min: number }) => {
+        const pad = Math.max(value.min * 0.05, 1);
+        return Math.floor(value.min - pad);
+      },
+      max: (value: { max: number }) => {
+        const pad = Math.max(value.max * 0.05, 1);
+        return Math.ceil(value.max + pad);
+      },
+      nameTextStyle: { color: '#64748b', fontSize: 11 },
+      splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
+      axisLabel: {
+        color: '#64748b',
+        fontSize: 11,
+        formatter: (v: number) => (v >= 1e9 ? `${(v / 1e9).toFixed(1)} Tỷ` : `${(v / 1e6).toFixed(0)} Tr`),
+      },
+    },
+    series: [
+      {
+        name: 'Số dư tại cuối mốc',
+        type: 'line',
         smooth: true,
         showSymbol: true,
         symbolSize: 8,
@@ -320,6 +450,33 @@ export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datase
             )}
 
             <div className="flex items-center space-x-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/70 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={() => setChartViewMode('split')}
+                title="Tách riêng 2 biểu đồ để nhìn rõ xu hướng Số Dư"
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer ${
+                  chartViewMode === 'split'
+                    ? 'bg-white text-emerald-700 shadow-xs border border-slate-200/50'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                📊 Tách 2 Biểu Đồ
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartViewMode('combined')}
+                title="Gộp chung 2 trục Doanh số & Số dư"
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer ${
+                  chartViewMode === 'combined'
+                    ? 'bg-white text-blue-600 shadow-xs border border-slate-200/50'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                🔗 Gộp Chung
+              </button>
+            </div>
+
+            <div className="flex items-center space-x-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/70 self-start sm:self-auto">
               {(['day', 'week', 'month', 'quarter'] as const).map((p) => {
                 const isActive = period === p;
                 const label = p === 'day' ? 'Ngày' : p === 'week' ? 'Tuần' : p === 'month' ? 'Tháng' : 'Quý';
@@ -350,6 +507,26 @@ export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datase
           <div className="h-72 flex flex-col items-center justify-center text-slate-400">
             <span className="text-2xl mb-2">📊</span>
             <span className="text-xs font-medium">Chưa có phát sinh dữ liệu trong kỳ này</span>
+          </div>
+        ) : chartViewMode === 'split' ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="border border-slate-100 rounded-xl p-3 bg-slate-50/40">
+              <div className="text-xs font-bold text-blue-700 flex items-center gap-1.5 mb-1 px-2">
+                <span>💰</span>
+                <span>Xu Hướng Doanh Số Phát Sinh (Theo Mốc)</span>
+              </div>
+              <ReactECharts option={salesOption} style={{ height: compact ? '240px' : '300px', width: '100%' }} />
+            </div>
+            <div className="border border-emerald-100 rounded-xl p-3 bg-emerald-50/20">
+              <div className="text-xs font-bold text-emerald-800 flex items-center justify-between gap-1.5 mb-1 px-2">
+                <span className="flex items-center gap-1.5">
+                  <span>🏦</span>
+                  <span>Xu Hướng Số Dư Nguồn Vốn (Trục Dãn Biên Độ Tự Động)</span>
+                </span>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-semibold">Zoom biên độ</span>
+              </div>
+              <ReactECharts option={balanceOption} style={{ height: compact ? '240px' : '300px', width: '100%' }} />
+            </div>
           </div>
         ) : (
           <ReactECharts option={trendOption} style={{ height: compact ? '260px' : '340px', width: '100%' }} />

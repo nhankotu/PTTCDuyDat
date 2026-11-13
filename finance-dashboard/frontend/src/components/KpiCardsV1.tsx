@@ -28,8 +28,8 @@ export const KpiCardsV1: React.FC<Props> = ({ kpiData, loading, onOpenDetails })
 
   if (loading) {
     return (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-3 gap-4 mb-6">
-        {[...Array(6)].map((_, i) => (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mb-6">
+        {[...Array(7)].map((_, i) => (
           <div
             key={i}
             className="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-xs animate-pulse space-y-3"
@@ -86,12 +86,12 @@ export const KpiCardsV1: React.FC<Props> = ({ kpiData, loading, onOpenDetails })
     },
     {
       id: 3,
-      title: '3. Số khách hàng',
-      subtitle: 'Khách hàng phát sinh kỳ',
-      value: formatCount(metrics?.totalCustomers, access.revenue),
-      raw: metrics?.totalCustomers?.toString(),
+      title: '3. Số KH mới',
+      subtitle: 'Ngoài Safe ≥ 1Tr lần đầu',
+      value: formatCount(metrics?.newCustomers ?? metrics?.totalCustomers, access.revenue),
+      raw: (metrics?.newCustomers ?? metrics?.totalCustomers)?.toString(),
       hasAccess: access.revenue,
-      icon: '👥',
+      icon: '✨',
       theme: {
         border: 'border-purple-200/80 hover:border-purple-400',
         topStripe: 'from-purple-500 to-indigo-600',
@@ -103,7 +103,24 @@ export const KpiCardsV1: React.FC<Props> = ({ kpiData, loading, onOpenDetails })
     },
     {
       id: 4,
-      title: '4. Số lượng HĐ',
+      title: '4. Tổng KH lũy kế',
+      subtitle: 'KH còn số dư tại ngày T',
+      value: formatCount(metrics?.cumulativeCustomers, access.balance),
+      raw: metrics?.cumulativeCustomers?.toString(),
+      hasAccess: access.balance,
+      icon: '👥',
+      theme: {
+        border: 'border-teal-200/80 hover:border-teal-400',
+        topStripe: 'from-teal-500 to-emerald-600',
+        badgeBg: 'bg-teal-50 text-teal-700 border-teal-100',
+        iconBg: 'bg-teal-100/70 text-teal-700',
+        valueColor: 'text-teal-950',
+        glow: 'hover:shadow-teal-500/10',
+      },
+    },
+    {
+      id: 5,
+      title: '5. Số lượng HĐ',
       subtitle: 'Hợp đồng ký trong kỳ',
       value: formatCount(metrics?.totalContracts, access.revenue),
       raw: metrics?.totalContracts?.toString(),
@@ -119,8 +136,8 @@ export const KpiCardsV1: React.FC<Props> = ({ kpiData, loading, onOpenDetails })
       },
     },
     {
-      id: 5,
-      title: '5. Quy mô TB / HĐ',
+      id: 6,
+      title: '6. Quy mô TB / HĐ',
       subtitle: 'Doanh số / Số HĐ',
       value: formatMoney(metrics?.avgSizePerContract, access.revenue),
       raw: metrics?.avgSizePerContract,
@@ -136,8 +153,8 @@ export const KpiCardsV1: React.FC<Props> = ({ kpiData, loading, onOpenDetails })
       },
     },
     {
-      id: 6,
-      title: '6. Quy mô TB / KH',
+      id: 7,
+      title: '7. Quy mô TB / KH',
       subtitle: 'Doanh số / Số KH',
       value: formatMoney(metrics?.avgSizePerCustomer, access.revenue),
       raw: metrics?.avgSizePerCustomer,
@@ -178,14 +195,14 @@ export const KpiCardsV1: React.FC<Props> = ({ kpiData, loading, onOpenDetails })
       )}
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-3 gap-3.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {cards.map((c) => (
           <div
             key={c.id}
             role={onOpenDetails && c.hasAccess ? 'button' : undefined}
             tabIndex={onOpenDetails && c.hasAccess ? 0 : undefined}
-            onClick={() => { if (c.hasAccess) onOpenDetails?.(c.id === 2 ? 'balance' : 'sales'); }}
-            onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && c.hasAccess) { e.preventDefault(); onOpenDetails?.(c.id === 2 ? 'balance' : 'sales'); } }}
+            onClick={() => { if (c.hasAccess) onOpenDetails?.(c.id === 2 || c.id === 4 ? 'balance' : 'sales'); }}
+            onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && c.hasAccess) { e.preventDefault(); onOpenDetails?.(c.id === 2 || c.id === 4 ? 'balance' : 'sales'); } }}
             className={`group relative bg-white rounded-2xl border ${c.theme.border} p-4 shadow-xs hover:shadow-lg transition-all duration-200 hover:-translate-y-1 focus-visible:outline-2 focus-visible:outline-blue-600 cursor-pointer flex flex-col justify-between overflow-hidden`}
           >
             {/* Top gradient stripe */}

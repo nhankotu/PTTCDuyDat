@@ -100,6 +100,30 @@ export const apiV1 = {
     return response.data;
   },
 
+  downloadContractsExcel: async (params: Partial<DimensionFilters> & ContractFilters & {
+    fromDate?: string;
+    toDate?: string;
+    employeeId?: string;
+    product?: string;
+    datasetId?: string;
+    viewEmployeeId?: string;
+    view?: 'self' | 'subtree';
+  }): Promise<Blob> => {
+    const response = await api.get('/v1/contracts/export-excel', {
+      params,
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+
+  markGhostContract: async (appendixNumber: string): Promise<void> => {
+    await api.post('/v1/contracts/mark-ghost', { appendixNumber });
+  },
+
+  unmarkGhostContract: async (appendixNumber: string): Promise<void> => {
+    await api.post('/v1/contracts/unmark-ghost', { appendixNumber });
+  },
+
   exportContractsUrl: (params: {
     fromDate?: string;
     toDate?: string;

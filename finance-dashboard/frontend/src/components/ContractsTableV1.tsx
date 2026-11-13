@@ -65,11 +65,37 @@ export function ContractsTableV1(props: Props) {
     } catch { setExportError('Không xuất được báo cáo. Vui lòng thử lại.'); }
     finally { setExporting(false); }
   };
+  const exportExcel = async () => {
+    setExporting(true); setExportError(null);
+    try {
+      const blob = await apiV1.downloadContractsExcel({ ...props, ...filters });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a'); link.href = url;
+      link.download = `hop_dong_${props.viewEmployeeId || 'pham_vi_cua_toi'}_${props.fromDate}_${props.toDate}.xls`;
+      document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+    } catch { setExportError('Không xuất được file Excel. Vui lòng thử lại.'); }
+    finally { setExporting(false); }
+  };
+  const toggleGhost = async (c: ContractDetailItem) => {
+    try {
+      if (c.isGhost) {
+        await apiV1.unmarkGhostContract(c.appendixNumber);
+      } else {
+        await apiV1.markGhostContract(c.appendixNumber);
+      }
+      setRevision(n => n + 1);
+    } catch {
+      setError(`Không thể cập nhật trạng thái hợp đồng ma cho ${c.appendixNumber}.`);
+    }
+  };
   const pages = Math.max(1, Math.ceil(totalCount / pageSize));
   return <section className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 space-y-5">
     <div className="flex flex-wrap justify-between items-center gap-3">
       <div><h2 className="text-lg font-bold text-slate-900">Tra cứu hợp đồng</h2><p className="text-sm text-slate-500">{props.basis === 'balance' ? `Hợp đồng đóng góp số dư tại ${props.asOfDate || props.toDate}, gồm cả hợp đồng ký trước kỳ.` : 'Hợp đồng phát sinh trong kỳ. Tìm trên toàn bộ dữ liệu trong phạm vi được cấp.'}</p></div>
-      <button disabled={exporting || loading || !!error} onClick={exportCsv} className="inline-flex items-center gap-2 bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50"><Download size={17} />{exporting ? 'Đang xuất…' : 'Xuất tất cả kết quả'}</button>
+      <div className="flex items-center gap-2">
+        <button disabled={exporting || loading || !!error} onClick={exportExcel} className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg px-3.5 py-2 text-sm font-semibold disabled:opacity-50 shadow-xs cursor-pointer"><Download size={16} />{exporting ? 'Đang xuất…' : 'Xuất Excel (Tô vàng HĐ ma)'}</button>
+        <button disabled={exporting || loading || !!error} onClick={exportCsv} className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg px-3.5 py-2 text-sm font-semibold disabled:opacity-50 shadow-xs cursor-pointer"><Download size={16} />{exporting ? 'Đang xuất…' : 'Xuất CSV'}</button>
+      </div>
     </div>
     <form onSubmit={e => { e.preventDefault(); apply(); }} className="space-y-3">
       <div className="flex flex-wrap gap-3 items-end">
@@ -97,19 +123,41 @@ export function ContractsTableV1(props: Props) {
     <label className="flex gap-2 items-center text-sm text-slate-600"><input type="checkbox" checked={showSales} onChange={e => setShowSales(e.target.checked)} />Hiển thị sale gốc và sale thụ hưởng</label>
     <div className="overflow-x-auto rounded-xl border border-slate-200">
       <table className="min-w-full text-sm text-left">
-        <thead className="bg-slate-50 text-slate-600"><tr>{['Số phụ lục', 'Khách hàng', 'Sản phẩm / Kỳ hạn', 'Giá trị gốc', 'Đã tất toán', 'Số dư', 'Ngày ký', ...(showSales ? ['Sale gốc', 'Sale thụ hưởng'] : []), 'Trạng thái'].map(label => <th key={label} className="px-4 py-3 whitespace-nowrap font-semibold">{label}</th>)}</tr></thead>
+        <thead className="bg-slate-50 text-slate-600"><tr>{['Số phụ lục', 'Khách hàng', 'Sản phẩm / Kỳ hạn', 'Giá trị gốc', 'Đã tất toán', 'Số dư', 'Ngày ký', ...(showSales ? ['Sale gốc', 'Sale thụ hưởng'] : []), 'Trạng thái', 'HĐ ma'].map(label => <th key={label} className="px-4 py-3 whitespace-nowrap font-semibold">{label}</th>)}</tr></thead>
         <tbody className="divide-y divide-slate-100">
-          {loading ? <tr><td colSpan={10} className="p-10 text-center text-slate-500" role="status">Đang tải hợp đồng…</td></tr>
-            : contracts.length === 0 ? <tr><td colSpan={10} className="p-10 text-center text-slate-500">{error ? 'Không tải được dữ liệu.' : 'Không có hợp đồng khớp các điều kiện đã áp dụng.'}</td></tr>
-            : contracts.map((c, i) => <tr key={`${c.appendixNumber}:${i}`} className="hover:bg-blue-50/40">
-              <td className="px-4 py-3 sticky left-0 bg-white"><button onClick={() => setDetail(c)} className="font-semibold text-blue-700 underline underline-offset-4 whitespace-nowrap">{c.appendixNumber}</button></td>
-              <td className="px-4 py-3 whitespace-nowrap"><div className="font-medium">{c.customerName}</div><div className="text-xs text-slate-500">{c.customerCode}</div></td>
-              <td className="px-4 py-3 whitespace-nowrap"><div>{c.productName}</div><div className="text-xs text-slate-500">{c.term}</div></td>
-              <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">{money(c.contractValue)}</td><td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">{money(c.settledAmount)}</td><td className="px-4 py-3 text-right tabular-nums whitespace-nowrap font-semibold text-emerald-800">{money(c.balance)}</td>
-              <td className="px-4 py-3 whitespace-nowrap">{c.signDate}</td>
-              {showSales && <><td className="px-4 py-3">{c.saleId}</td><td className="px-4 py-3 font-medium">{c.effectiveSaleId}{c.effectiveSaleId !== c.saleId && <span className="text-xs text-amber-700 block">Đã điều chỉnh</span>}</td></>}
-              <td className="px-4 py-3 whitespace-nowrap">{statuses[c.status] || c.status}</td>
-            </tr>)}
+          {loading ? <tr><td colSpan={11} className="p-10 text-center text-slate-500" role="status">Đang tải hợp đồng…</td></tr>
+            : contracts.length === 0 ? <tr><td colSpan={11} className="p-10 text-center text-slate-500">{error ? 'Không tải được dữ liệu.' : 'Không có hợp đồng khớp các điều kiện đã áp dụng.'}</td></tr>
+            : contracts.map((c, i) => {
+              const isGhost = !!c.isGhost;
+              return <tr key={`${c.appendixNumber}:${i}`} className={isGhost ? 'bg-amber-100/70 hover:bg-amber-200/60 border-l-4 border-amber-500' : 'hover:bg-blue-50/40'}>
+                <td className={`px-4 py-3 sticky left-0 ${isGhost ? 'bg-amber-100/90' : 'bg-white'}`}>
+                  <div className="flex items-center gap-1.5">
+                    <button onClick={() => setDetail(c)} className={`font-semibold underline underline-offset-4 whitespace-nowrap ${isGhost ? 'text-amber-900' : 'text-blue-700'}`}>{c.appendixNumber}</button>
+                    {isGhost && <span className="text-[10px] bg-amber-300 text-amber-900 px-1.5 py-0.5 rounded font-black uppercase">MA</span>}
+                  </div>
+                </td>
+                <td className="px-4 py-3 whitespace-nowrap"><div className="font-medium">{c.customerName}</div><div className="text-xs text-slate-500">{c.customerCode}</div></td>
+                <td className="px-4 py-3 whitespace-nowrap"><div>{c.productName}</div><div className="text-xs text-slate-500">{c.term}</div></td>
+                <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">{money(c.contractValue)}</td><td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">{money(c.settledAmount)}</td><td className="px-4 py-3 text-right tabular-nums whitespace-nowrap font-semibold text-emerald-800">{money(c.balance)}</td>
+                <td className="px-4 py-3 whitespace-nowrap">{c.signDate}</td>
+                {showSales && <><td className="px-4 py-3">{c.saleId}</td><td className="px-4 py-3 font-medium">{c.effectiveSaleId}{c.effectiveSaleId !== c.saleId && <span className="text-xs text-amber-700 block">Đã điều chỉnh</span>}</td></>}
+                <td className="px-4 py-3 whitespace-nowrap">{statuses[c.status] || c.status}</td>
+                <td className="px-4 py-3 whitespace-nowrap text-center">
+                  <button
+                    type="button"
+                    onClick={() => toggleGhost(c)}
+                    title={isGhost ? 'Bỏ đánh dấu hợp đồng ma' : 'Đánh dấu đây là hợp đồng ma'}
+                    className={`px-2 py-1 rounded text-xs font-bold transition cursor-pointer ${
+                      isGhost
+                        ? 'bg-amber-300 hover:bg-amber-400 text-amber-900 border border-amber-400'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-300'
+                    }`}
+                  >
+                    {isGhost ? '⚠️ Bỏ ma' : 'Gán ma'}
+                  </button>
+                </td>
+              </tr>;
+            })}
         </tbody>
       </table>
     </div>
