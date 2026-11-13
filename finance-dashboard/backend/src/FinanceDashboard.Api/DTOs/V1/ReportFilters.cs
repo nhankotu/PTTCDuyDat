@@ -19,6 +19,11 @@ public class ReportFilters
     public string Basis { get; set; } = "sales";
     public string Sort { get; set; } = "date_desc";
 
+    // Smart business rule toggles
+    public bool ExcludeTenDays { get; set; } = false;
+    public bool ExcludeSafeNewCust { get; set; } = false;
+    public bool ExcludeGhost { get; set; } = false;
+
     public void Validate(bool contracts = false)
     {
         if (MinValue > MaxValue || MinBalance > MaxBalance ||
@@ -73,6 +78,9 @@ public class ReportFilters
         args.Add("FilterAll", scope.CanAccessAll);
         args.Add("SortByValue", Sort.StartsWith("value_", StringComparison.Ordinal));
         args.Add("FilterRevenueScope", scope.RevenueScope.ToArray()); args.Add("FilterBalanceScope", scope.BalanceScope.ToArray());
+        args.Add("ExcludeTenDays", ExcludeTenDays);
+        args.Add("ExcludeSafeNewCust", ExcludeSafeNewCust);
+        args.Add("ExcludeGhost", ExcludeGhost);
         return args;
     }
 

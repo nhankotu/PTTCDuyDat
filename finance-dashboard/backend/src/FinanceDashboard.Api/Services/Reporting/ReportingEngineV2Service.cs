@@ -167,13 +167,15 @@ public class ReportingEngineV2Service
                     WHERE c.status IN ('APPROVED', 'LIQUIDATED')
                       AND c.sign_date >= @FromDate AND c.sign_date <= @ToDate
                       AND c.valid_from <= @ToDate AND c.valid_to > @FromDate
-                      AND c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract)
+                      AND (@ExcludeGhost = FALSE OR c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract))
                       AND (
-                        CASE
-                          WHEN c.status = 'LIQUIDATED' AND c.liquidate_date IS NOT NULL
-                            THEN (c.liquidate_date - c.sign_date) > 10
-                          ELSE (CURRENT_DATE - c.sign_date) > 10
-                        END
+                        @ExcludeTenDays = FALSE OR (
+                          CASE
+                            WHEN c.status = 'LIQUIDATED' AND c.liquidate_date IS NOT NULL
+                              THEN (c.liquidate_date - c.sign_date) > 10
+                            ELSE (CURRENT_DATE - c.sign_date) > 10
+                          END
+                        )
                       )
                       {manifestClause}
                       {ReportFilters.Clause}
@@ -207,54 +209,61 @@ public class ReportingEngineV2Service
             }
         }
 
-        // 1b. New Customers (Mục 2): KH có HĐ sản phẩm khác Safe, >= 1Tr, lần đầu trong kỳ
+        // 1b. New Customers (Mục 2): Khi bật ExcludeSafeNewCust -> lọc KH có HĐ khác Safe >= 1Tr lần đầu; nếu tắt -> lấy tổng KH phát sinh kỳ
         int newCustomers = 0;
         if (hasRevAccess)
         {
-            var newCustSql = $@"
-                WITH resolved_contracts AS (
-                    SELECT DISTINCT ON (c.appendix_number)
-                        c.appendix_number,
-                        c.customer_code,
-                        c.contract_value,
-                        c.product_name,
-                        c.sign_date,
-                        COALESCE(e.new_sale_id, c.sale_id) AS effective_sale_id
-                    FROM contract_appendix_version c
-                    LEFT JOIN contract_exception_version e 
-                           ON e.appendix_number = c.appendix_number 
-                          AND e.effective_date <= @ToDate
-                          AND (e.expire_date IS NULL OR e.expire_date > @ToDate)
-                    WHERE c.status IN ('APPROVED', 'LIQUIDATED')
-                      AND c.sign_date >= @FromDate AND c.sign_date <= @ToDate
-                      AND c.valid_from <= @ToDate AND c.valid_to > @FromDate
-                      AND c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract)
-                      AND UPPER(c.product_name) NOT LIKE '%SAFE%'
-                      AND c.contract_value >= 1000000
-                      {manifestClause}
-                      {scopeRevClause}
-                    ORDER BY c.appendix_number, c.version_num DESC
-                )
-                SELECT COUNT(DISTINCT rc.customer_code) AS NewCustomers
-                FROM resolved_contracts rc
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM contract_appendix_version old
-                    WHERE UPPER(TRIM(old.customer_code)) = UPPER(TRIM(rc.customer_code))
-                      AND old.sign_date < @FromDate
-                      AND UPPER(old.product_name) NOT LIKE '%SAFE%'
-                      AND old.contract_value >= 1000000
-                      AND old.status IN ('APPROVED', 'LIQUIDATED')
-                      AND old.is_active_version = TRUE
-                );";
-
-            newCustomers = await connection.ExecuteScalarAsync<int>(newCustSql, new
+            if (filters.ExcludeSafeNewCust)
             {
-                FromDate = fromDate,
-                ToDate = toDate,
-                FilterEmployeeId = filterEmployeeId,
-                RevScope = revScopeList.ToArray(),
-                ManifestBatches = manifestBatches.ToArray()
-            });
+                var newCustSql = $@"
+                    WITH resolved_contracts AS (
+                        SELECT DISTINCT ON (c.appendix_number)
+                            c.appendix_number,
+                            c.customer_code,
+                            c.contract_value,
+                            c.product_name,
+                            c.sign_date,
+                            COALESCE(e.new_sale_id, c.sale_id) AS effective_sale_id
+                        FROM contract_appendix_version c
+                        LEFT JOIN contract_exception_version e 
+                               ON e.appendix_number = c.appendix_number 
+                              AND e.effective_date <= @ToDate
+                              AND (e.expire_date IS NULL OR e.expire_date > @ToDate)
+                        WHERE c.status IN ('APPROVED', 'LIQUIDATED')
+                          AND c.sign_date >= @FromDate AND c.sign_date <= @ToDate
+                          AND c.valid_from <= @ToDate AND c.valid_to > @FromDate
+                          AND (@ExcludeGhost = FALSE OR c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract))
+                          AND UPPER(c.product_name) NOT LIKE '%SAFE%'
+                          AND c.contract_value >= 1000000
+                          {manifestClause}
+                          {scopeRevClause}
+                        ORDER BY c.appendix_number, c.version_num DESC
+                    )
+                    SELECT COUNT(DISTINCT rc.customer_code) AS NewCustomers
+                    FROM resolved_contracts rc
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM contract_appendix_version old
+                        WHERE UPPER(TRIM(old.customer_code)) = UPPER(TRIM(rc.customer_code))
+                          AND old.sign_date < @FromDate
+                          AND UPPER(old.product_name) NOT LIKE '%SAFE%'
+                          AND old.contract_value >= 1000000
+                          AND old.status IN ('APPROVED', 'LIQUIDATED')
+                          AND old.is_active_version = TRUE
+                    );";
+
+                newCustomers = await connection.ExecuteScalarAsync<int>(newCustSql, filters.Bind(new
+                {
+                    FromDate = fromDate,
+                    ToDate = toDate,
+                    FilterEmployeeId = filterEmployeeId,
+                    RevScope = revScopeList.ToArray(),
+                    ManifestBatches = manifestBatches.ToArray()
+                }, scope));
+            }
+            else
+            {
+                newCustomers = totalCustomers;
+            }
         }
 
         // 2. Total Balance (Scope = BalanceScope, as of targetAsOf - R05: Immutability via valid_from / valid_to)
@@ -279,7 +288,7 @@ public class ReportingEngineV2Service
                     WHERE c.status IN ('APPROVED', 'LIQUIDATED')
                       AND c.sign_date <= @AsOfDate
                       AND c.valid_from <= @AsOfDate AND c.valid_to > @AsOfDate
-                      AND c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract)
+                      AND (@ExcludeGhost = FALSE OR c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract))
                       {manifestClause}
                       {ReportFilters.Clause}
                       {(string.IsNullOrEmpty(filterProduct) ? "" : "AND c.product_name = @FilterProduct ")}
@@ -334,7 +343,7 @@ public class ReportingEngineV2Service
                     WHERE c.status IN ('APPROVED', 'LIQUIDATED')
                       AND c.sign_date <= @AsOfDate
                       AND c.valid_from <= @AsOfDate AND c.valid_to > @AsOfDate
-                      AND c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract)
+                      AND (@ExcludeGhost = FALSE OR c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract))
                       {manifestClause}
                       {ReportFilters.Clause}
                       {scopeBalClause}
@@ -537,7 +546,7 @@ public class ReportingEngineV2Service
                       AND (e.expire_date IS NULL OR e.expire_date > @ToDate)
                 WHERE c.status IN ('APPROVED', 'LIQUIDATED')
                   AND c.valid_from <= @ToDate AND c.valid_to > @FromDate
-                  AND c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract)
+                  AND (@ExcludeGhost = FALSE OR c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract))
                   {manifestClause}
                   {ReportFilters.Clause}
                 ORDER BY c.appendix_number, c.version_num DESC
@@ -559,28 +568,34 @@ public class ReportingEngineV2Service
                 BOOL_OR(@AllAccess OR rc.effective_sale_id = ANY(@BalScope)) AS HasBalanceAccess,
                 COALESCE(SUM(CASE WHEN rc.sign_date >= @FromDate AND rc.sign_date <= @ToDate {revFilter}
                                   AND (
-                                    CASE
-                                      WHEN rc.liquidate_date IS NOT NULL THEN (rc.liquidate_date - rc.sign_date) > 10
-                                      ELSE (CURRENT_DATE - rc.sign_date) > 10
-                                    END
+                                    @ExcludeTenDays = FALSE OR (
+                                      CASE
+                                        WHEN rc.liquidate_date IS NOT NULL THEN (rc.liquidate_date - rc.sign_date) > 10
+                                        ELSE (CURRENT_DATE - rc.sign_date) > 10
+                                      END
+                                    )
                                   )
                                   THEN rc.contract_value ELSE 0 END), 0) AS TotalSales,
                 COALESCE(SUM(CASE WHEN rc.sign_date <= @AsOfDate {balFilter}
                                   THEN {ReportFilters.BalanceExpr("rc", "s")} ELSE 0 END), 0) AS TotalBalance,
                 COUNT(DISTINCT CASE WHEN rc.sign_date >= @FromDate AND rc.sign_date <= @ToDate {revFilter}
                                     AND (
-                                      CASE
-                                        WHEN rc.liquidate_date IS NOT NULL THEN (rc.liquidate_date - rc.sign_date) > 10
-                                        ELSE (CURRENT_DATE - rc.sign_date) > 10
-                                      END
+                                      @ExcludeTenDays = FALSE OR (
+                                        CASE
+                                          WHEN rc.liquidate_date IS NOT NULL THEN (rc.liquidate_date - rc.sign_date) > 10
+                                          ELSE (CURRENT_DATE - rc.sign_date) > 10
+                                        END
+                                      )
                                     )
                                     THEN rc.appendix_number END) AS ContractCount,
                 COUNT(DISTINCT CASE WHEN rc.sign_date >= @FromDate AND rc.sign_date <= @ToDate {revFilter}
                                     AND (
-                                      CASE
-                                        WHEN rc.liquidate_date IS NOT NULL THEN (rc.liquidate_date - rc.sign_date) > 10
-                                        ELSE (CURRENT_DATE - rc.sign_date) > 10
-                                      END
+                                      @ExcludeTenDays = FALSE OR (
+                                        CASE
+                                          WHEN rc.liquidate_date IS NOT NULL THEN (rc.liquidate_date - rc.sign_date) > 10
+                                          ELSE (CURRENT_DATE - rc.sign_date) > 10
+                                        END
+                                      )
                                     )
                                     THEN rc.customer_code END) AS CustomerCount
             FROM resolved_contracts rc
@@ -711,6 +726,16 @@ public class ReportingEngineV2Service
                       AND (e.expire_date IS NULL OR e.expire_date > @AsOfDate)
                 WHERE c.status IN ('APPROVED', 'LIQUIDATED')
                   {(filters.Basis == "balance" ? "AND c.sign_date <= @AsOfDate" : "AND c.sign_date >= @FromDate AND c.sign_date <= @ToDate")}
+                  AND (@ExcludeGhost = FALSE OR c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract))
+                  AND (
+                    @ExcludeTenDays = FALSE OR (
+                      CASE
+                        WHEN c.status = 'LIQUIDATED' AND c.liquidate_date IS NOT NULL
+                          THEN (c.liquidate_date - c.sign_date) > 10
+                        ELSE (CURRENT_DATE - c.sign_date) > 10
+                      END
+                    )
+                  )
                   AND c.valid_from <= @AsOfDate AND c.valid_to > @AsOfDate
                   {manifestClause}
                   {ReportFilters.Clause}

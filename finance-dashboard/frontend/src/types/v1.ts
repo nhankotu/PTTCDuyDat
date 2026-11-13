@@ -192,6 +192,9 @@ export interface DimensionFilters {
   terms: string[];
   channels: string[];
   statuses: string[];
+  excludeTenDays?: boolean;
+  excludeSafeNewCust?: boolean;
+  excludeGhost?: boolean;
 }
 export interface ContractPage {
   items: ContractDetailItem[];
