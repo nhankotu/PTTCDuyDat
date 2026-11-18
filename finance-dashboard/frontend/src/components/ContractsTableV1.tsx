@@ -4,38 +4,79 @@ import { apiV1 } from '../services/apiV1';
 import { ContractDetailItem, ContractFilters, DimensionFilters, ReportView } from '../types/v1';
 
 interface Props extends ReportView, DimensionFilters {
-  fromDate: string; toDate: string; datasetId?: string; asOfDate?: string; basis?: 'sales' | 'balance';
+  fromDate: string;
+  toDate: string;
+  datasetId?: string;
+  asOfDate?: string;
+  basis?: 'sales' | 'balance';
+  isAdmin?: boolean;
+  refreshKey?: number;
+  onBasisChange?: (basis: 'sales' | 'balance') => void;
+  onGhostToggled?: () => void;
 }
 const money = (value: string | null) => value === null ? 'Không có quyền' : new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(Number(value)) + ' đ';
 const statuses: Record<string, string> = { APPROVED: 'Đã duyệt', LIQUIDATED: 'Đã tất toán', PENDING: 'Chưa duyệt', ADVANCING: 'Đang ứng tiền' };
+const ghostFilterLabels: Record<string, string> = { only_ghost: 'Chỉ HĐ ma', non_ghost: 'Chỉ HĐ hợp lệ' };
 const inputClass = 'w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm text-slate-900';
 
 export function ContractsTableV1(props: Props) {
+  const {
+    fromDate, toDate, datasetId, asOfDate, basis = 'sales',
+    viewEmployeeId, view, products, terms, channels, statuses: dimStatuses,
+    excludeTenDays, excludeSafeNewCust, excludeGhost,
+    isAdmin = false, refreshKey = 0, onBasisChange, onGhostToggled,
+  } = props;
+
   const [contracts, setContracts] = useState<ContractDetailItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
-  const [draft, setDraft] = useState<ContractFilters>({ sort: 'date_desc' });
-  const [filters, setFilters] = useState<ContractFilters>({ sort: 'date_desc' });
+  const [draft, setDraft] = useState<ContractFilters>({ sort: 'date_desc', ghostFilter: 'all' });
+  const [filters, setFilters] = useState<ContractFilters>({ sort: 'date_desc', ghostFilter: 'all' });
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [revision, setRevision] = useState(0);
   const [detail, setDetail] = useState<ContractDetailItem | null>(null);
   const [showSales, setShowSales] = useState(true);
   const closeRef = useRef<HTMLButtonElement>(null);
-  const key = JSON.stringify([props, filters, page, pageSize, revision]);
+
+  const apiBaseParams = {
+    fromDate,
+    toDate,
+    datasetId,
+    asOfDate,
+    basis,
+    viewEmployeeId,
+    view,
+    products,
+    terms,
+    channels,
+    statuses: dimStatuses,
+    excludeTenDays,
+    excludeSafeNewCust,
+    excludeGhost,
+  };
+  const globalKey = JSON.stringify([fromDate, toDate, datasetId, asOfDate, basis, viewEmployeeId, view, products, terms, channels, dimStatuses, !!excludeTenDays, !!excludeSafeNewCust, !!excludeGhost]);
+  const prevGlobalKeyRef = useRef(globalKey);
+
   useEffect(() => {
     let active = true;
-    setLoading(true); setError(null); setContracts([]); setTotalCount(0);
-    apiV1.getContracts({ ...props, ...filters, page, pageSize }).then(data => {
+    const effectivePage = prevGlobalKeyRef.current !== globalKey ? 1 : page;
+    if (prevGlobalKeyRef.current !== globalKey) {
+      prevGlobalKeyRef.current = globalKey;
+      if (page !== 1) setPage(1);
+    }
+    setLoading(true); setError(null);
+    apiV1.getContracts({ ...apiBaseParams, ...filters, page: effectivePage, pageSize }).then(data => {
       if (!active) return;
       setContracts(data.items); setTotalCount(data.totalCount);
     }).catch(err => { if (active) setError(err.response?.data?.message || 'Không tải được danh sách hợp đồng.'); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [key]);
+  }, [globalKey, JSON.stringify(filters), page, pageSize, revision, refreshKey]);
+
   useEffect(() => {
     if (!detail) return;
     const previous = document.activeElement as HTMLElement | null;
@@ -47,20 +88,22 @@ export function ContractsTableV1(props: Props) {
     document.addEventListener('keydown', handleKey);
     return () => { document.removeEventListener('keydown', handleKey); previous?.focus(); };
   }, [detail]);
+
   const apply = () => {
     if ((draft.minValue && draft.maxValue && Number(draft.minValue) > Number(draft.maxValue)) ||
         (draft.minBalance && draft.maxBalance && Number(draft.minBalance) > Number(draft.maxBalance))) {
       setError('Giá trị tối thiểu không được lớn hơn giá trị tối đa.'); return;
     }
+    setError(null);
     setFilters({ ...draft }); setPage(1); setRevision(n => n + 1);
   };
   const exportCsv = async () => {
     setExporting(true); setExportError(null);
     try {
-      const blob = await apiV1.downloadContractsCsv({ ...props, ...filters });
+      const blob = await apiV1.downloadContractsCsv({ ...apiBaseParams, ...filters });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a'); link.href = url;
-      link.download = `hop_dong_${props.viewEmployeeId || 'pham_vi_cua_toi'}_${props.fromDate}_${props.toDate}.csv`;
+      link.download = `hop_dong_${viewEmployeeId || 'pham_vi_cua_toi'}_${fromDate}_${toDate}.csv`;
       document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
     } catch { setExportError('Không xuất được báo cáo. Vui lòng thử lại.'); }
     finally { setExporting(false); }
@@ -68,15 +111,16 @@ export function ContractsTableV1(props: Props) {
   const exportExcel = async () => {
     setExporting(true); setExportError(null);
     try {
-      const blob = await apiV1.downloadContractsExcel({ ...props, ...filters });
+      const blob = await apiV1.downloadContractsExcel({ ...apiBaseParams, ...filters });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a'); link.href = url;
-      link.download = `hop_dong_${props.viewEmployeeId || 'pham_vi_cua_toi'}_${props.fromDate}_${props.toDate}.xls`;
+      link.download = `hop_dong_${viewEmployeeId || 'pham_vi_cua_toi'}_${fromDate}_${toDate}.xls`;
       document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
     } catch { setExportError('Không xuất được file Excel. Vui lòng thử lại.'); }
     finally { setExporting(false); }
   };
   const toggleGhost = async (c: ContractDetailItem) => {
+    if (!isAdmin) return;
     try {
       if (c.isGhost) {
         await apiV1.unmarkGhostContract(c.appendixNumber);
@@ -84,6 +128,7 @@ export function ContractsTableV1(props: Props) {
         await apiV1.markGhostContract(c.appendixNumber);
       }
       setRevision(n => n + 1);
+      onGhostToggled?.();
     } catch {
       setError(`Không thể cập nhật trạng thái hợp đồng ma cho ${c.appendixNumber}.`);
     }
@@ -91,7 +136,30 @@ export function ContractsTableV1(props: Props) {
   const pages = Math.max(1, Math.ceil(totalCount / pageSize));
   return <section className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 space-y-5">
     <div className="flex flex-wrap justify-between items-center gap-3">
-      <div><h2 className="text-lg font-bold text-slate-900">Tra cứu hợp đồng</h2><p className="text-sm text-slate-500">{props.basis === 'balance' ? `Hợp đồng đóng góp số dư tại ${props.asOfDate || props.toDate}, gồm cả hợp đồng ký trước kỳ.` : 'Hợp đồng phát sinh trong kỳ. Tìm trên toàn bộ dữ liệu trong phạm vi được cấp.'}</p></div>
+      <div className="space-y-1.5">
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-lg font-bold text-slate-900">Tra cứu hợp đồng</h2>
+          {onBasisChange && (
+            <div className="inline-flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1 text-xs">
+              <button
+                type="button"
+                onClick={() => onBasisChange('sales')}
+                className={`px-3 py-1 rounded-lg font-bold transition cursor-pointer ${basis === 'sales' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                💰 Phát sinh trong kỳ
+              </button>
+              <button
+                type="button"
+                onClick={() => onBasisChange('balance')}
+                className={`px-3 py-1 rounded-lg font-bold transition cursor-pointer ${basis === 'balance' ? 'bg-white text-emerald-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+              >
+                🏦 Còn số dư tại {asOfDate || toDate}
+              </button>
+            </div>
+          )}
+        </div>
+        <p className="text-sm text-slate-500">{basis === 'balance' ? `Danh sách các hợp đồng đang còn số dư (> 0 đ) tại ngày ${asOfDate || toDate}, gồm cả hợp đồng ký trước kỳ.` : 'Hợp đồng phát sinh theo ngày ký trong kỳ. Các hợp đồng ma được tô nền vàng để dễ đối chiếu.'}</p>
+      </div>
       <div className="flex items-center gap-2">
         <button disabled={exporting || loading || !!error} onClick={exportExcel} className="inline-flex items-center gap-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg px-3.5 py-2 text-sm font-semibold disabled:opacity-50 shadow-xs cursor-pointer"><Download size={16} />{exporting ? 'Đang xuất…' : 'Xuất Excel (Tô vàng HĐ ma)'}</button>
         <button disabled={exporting || loading || !!error} onClick={exportCsv} className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg px-3.5 py-2 text-sm font-semibold disabled:opacity-50 shadow-xs cursor-pointer"><Download size={16} />{exporting ? 'Đang xuất…' : 'Xuất CSV'}</button>
@@ -102,11 +170,24 @@ export function ContractsTableV1(props: Props) {
         <label className="text-sm text-slate-600 flex-1 min-w-52">Tìm hợp đồng, khách hàng hoặc sale
           <input aria-label="Tìm hợp đồng, khách hàng hoặc sale" value={draft.search || ''} onChange={e => setDraft({ ...draft, search: e.target.value || undefined })} placeholder="Số phụ lục, mã / tên khách hàng, sale…" className={inputClass} />
         </label>
+        <label className="text-sm text-slate-600">Phân loại HĐ ma
+          <select className={inputClass} value={draft.ghostFilter || 'all'} onChange={e => {
+            const nextGhost = e.target.value as ContractFilters['ghostFilter'];
+            const nextDraft = { ...draft, ghostFilter: nextGhost };
+            setDraft(nextDraft);
+            setFilters({ ...filters, ghostFilter: nextGhost });
+            setPage(1);
+          }}>
+            <option value="all">{excludeGhost ? 'Đang ẩn HĐ ma (Theo bộ lọc chung)' : 'Tất cả (Gồm cả HĐ ma tô vàng)'}</option>
+            <option value="only_ghost">⚠️ Chỉ xem Hợp đồng ma (Tô vàng)</option>
+            <option value="non_ghost">✅ Chỉ xem Hợp đồng hợp lệ</option>
+          </select>
+        </label>
         <label className="text-sm text-slate-600">Sắp xếp
           <select className={inputClass} value={draft.sort} onChange={e => setDraft({ ...draft, sort: e.target.value })}><option value="date_desc">Ngày ký mới nhất</option><option value="date_asc">Ngày ký cũ nhất</option><option value="value_desc">Giá trị giảm dần</option><option value="value_asc">Giá trị tăng dần</option></select>
         </label>
-        <button type="submit" className="inline-flex gap-2 items-center px-4 py-2 bg-blue-700 text-white rounded-lg text-sm font-semibold"><Search size={17} />Lọc hợp đồng</button>
-        <button type="button" onClick={() => { setDraft({ sort: 'date_desc' }); setFilters({ sort: 'date_desc' }); setPage(1); }} className="px-3 py-2 text-sm text-slate-600 underline">Đặt lại</button>
+        <button type="submit" className="inline-flex gap-2 items-center px-4 py-2 bg-blue-700 text-white rounded-lg text-sm font-semibold cursor-pointer"><Search size={17} />Lọc hợp đồng</button>
+        <button type="button" onClick={() => { setDraft({ sort: 'date_desc', ghostFilter: 'all' }); setFilters({ sort: 'date_desc', ghostFilter: 'all' }); setPage(1); }} className="px-3 py-2 text-sm text-slate-600 underline cursor-pointer">Đặt lại</button>
       </div>
       <details className="border border-slate-200 rounded-xl p-3">
         <summary className="cursor-pointer text-sm font-semibold text-slate-700">Lọc theo số tiền và sale thụ hưởng</summary>
@@ -117,13 +198,13 @@ export function ContractsTableV1(props: Props) {
       </details>
       {JSON.stringify(draft) !== JSON.stringify(filters) && <p role="status" className="text-sm text-amber-800">Điều kiện chi tiết chưa áp dụng. Bấm “Lọc hợp đồng”.</p>}
     </form>
-    {Object.entries(filters).filter(([field]) => field !== 'sort').map(([field, value]) => <button key={field} onClick={() => { const next = { ...filters }; delete next[field as keyof ContractFilters]; setFilters(next); setDraft(next); setPage(1); }} className="inline-flex items-center gap-1 text-sm bg-blue-50 text-blue-800 px-3 py-1 rounded-full mr-2" aria-label={`Bỏ điều kiện ${field}`}>{({ search: 'Tìm kiếm', minValue: 'Gốc từ', maxValue: 'Gốc đến', minBalance: 'Dư từ', maxBalance: 'Dư đến', changedSale: 'Đổi sale' } as Record<string, string>)[field]}: {typeof value === 'boolean' ? value ? 'Có' : 'Không' : value}<X size={14} /></button>)}
-    {error && <p role="alert" className="bg-rose-50 text-rose-800 rounded-lg p-3 text-sm">{error} <button onClick={() => setRevision(n => n + 1)} className="underline font-semibold">Thử lại</button></p>}
+    {Object.entries(filters).filter(([field, val]) => field !== 'sort' && !(field === 'ghostFilter' && val === 'all') && val !== undefined).map(([field, value]) => <button key={field} onClick={() => { const next = { ...filters }; if (field === 'ghostFilter') next.ghostFilter = 'all'; else delete next[field as keyof ContractFilters]; setFilters(next); setDraft(next); setPage(1); }} className="inline-flex items-center gap-1 text-sm bg-blue-50 text-blue-800 px-3 py-1 rounded-full mr-2 cursor-pointer" aria-label={`Bỏ điều kiện ${field}`}>{({ search: 'Tìm kiếm', minValue: 'Gốc từ', maxValue: 'Gốc đến', minBalance: 'Dư từ', maxBalance: 'Dư đến', changedSale: 'Đổi sale', ghostFilter: 'Phân loại' } as Record<string, string>)[field]}: {typeof value === 'boolean' ? value ? 'Có' : 'Không' : (ghostFilterLabels[String(value)] || value)}<X size={14} /></button>)}
+    {error && <p role="alert" className="bg-rose-50 text-rose-800 rounded-lg p-3 text-sm">{error} <button onClick={() => setRevision(n => n + 1)} className="underline font-semibold cursor-pointer">Thử lại</button></p>}
     {exportError && <p role="alert" className="text-rose-700 text-sm">{exportError}</p>}
     <label className="flex gap-2 items-center text-sm text-slate-600"><input type="checkbox" checked={showSales} onChange={e => setShowSales(e.target.checked)} />Hiển thị sale gốc và sale thụ hưởng</label>
     <div className="overflow-x-auto rounded-xl border border-slate-200">
       <table className="min-w-full text-sm text-left">
-        <thead className="bg-slate-50 text-slate-600"><tr>{['Số phụ lục', 'Khách hàng', 'Sản phẩm / Kỳ hạn', 'Giá trị gốc', 'Đã tất toán', 'Số dư', 'Ngày ký', ...(showSales ? ['Sale gốc', 'Sale thụ hưởng'] : []), 'Trạng thái', 'HĐ ma'].map(label => <th key={label} className="px-4 py-3 whitespace-nowrap font-semibold">{label}</th>)}</tr></thead>
+        <thead className="bg-slate-50 text-slate-600"><tr>{['Số phụ lục', 'Khách hàng', 'Sản phẩm / Kỳ hạn', 'Giá trị gốc', 'Đã tất toán', 'Số dư', 'Ngày ký', ...(showSales ? ['Sale gốc', 'Sale thụ hưởng'] : []), 'Trạng thái', isAdmin ? 'Đánh dấu HĐ ma' : 'Phân loại'].map(label => <th key={label} className="px-4 py-3 whitespace-nowrap font-semibold">{label}</th>)}</tr></thead>
         <tbody className="divide-y divide-slate-100">
           {loading ? <tr><td colSpan={11} className="p-10 text-center text-slate-500" role="status">Đang tải hợp đồng…</td></tr>
             : contracts.length === 0 ? <tr><td colSpan={11} className="p-10 text-center text-slate-500">{error ? 'Không tải được dữ liệu.' : 'Không có hợp đồng khớp các điều kiện đã áp dụng.'}</td></tr>
@@ -132,7 +213,7 @@ export function ContractsTableV1(props: Props) {
               return <tr key={`${c.appendixNumber}:${i}`} className={isGhost ? 'bg-amber-100/70 hover:bg-amber-200/60 border-l-4 border-amber-500' : 'hover:bg-blue-50/40'}>
                 <td className={`px-4 py-3 sticky left-0 ${isGhost ? 'bg-amber-100/90' : 'bg-white'}`}>
                   <div className="flex items-center gap-1.5">
-                    <button onClick={() => setDetail(c)} className={`font-semibold underline underline-offset-4 whitespace-nowrap ${isGhost ? 'text-amber-900' : 'text-blue-700'}`}>{c.appendixNumber}</button>
+                    <button onClick={() => setDetail(c)} className={`font-semibold underline underline-offset-4 whitespace-nowrap cursor-pointer ${isGhost ? 'text-amber-900' : 'text-blue-700'}`}>{c.appendixNumber}</button>
                     {isGhost && <span className="text-[10px] bg-amber-300 text-amber-900 px-1.5 py-0.5 rounded font-black uppercase">MA</span>}
                   </div>
                 </td>
@@ -143,18 +224,24 @@ export function ContractsTableV1(props: Props) {
                 {showSales && <><td className="px-4 py-3">{c.saleId}</td><td className="px-4 py-3 font-medium">{c.effectiveSaleId}{c.effectiveSaleId !== c.saleId && <span className="text-xs text-amber-700 block">Đã điều chỉnh</span>}</td></>}
                 <td className="px-4 py-3 whitespace-nowrap">{statuses[c.status] || c.status}</td>
                 <td className="px-4 py-3 whitespace-nowrap text-center">
-                  <button
-                    type="button"
-                    onClick={() => toggleGhost(c)}
-                    title={isGhost ? 'Bỏ đánh dấu hợp đồng ma' : 'Đánh dấu đây là hợp đồng ma'}
-                    className={`px-2 py-1 rounded text-xs font-bold transition cursor-pointer ${
-                      isGhost
-                        ? 'bg-amber-300 hover:bg-amber-400 text-amber-900 border border-amber-400'
-                        : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-300'
-                    }`}
-                  >
-                    {isGhost ? '⚠️ Bỏ ma' : 'Gán ma'}
-                  </button>
+                  {isAdmin ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleGhost(c)}
+                      title={isGhost ? 'Bỏ đánh dấu hợp đồng ma' : 'Đánh dấu đây là hợp đồng ma'}
+                      className={`px-2 py-1 rounded text-xs font-bold transition cursor-pointer ${
+                        isGhost
+                          ? 'bg-amber-300 hover:bg-amber-400 text-amber-900 border border-amber-400'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-300'
+                      }`}
+                    >
+                      {isGhost ? '⚠️ Bỏ ma' : 'Gán ma'}
+                    </button>
+                  ) : (
+                    isGhost
+                      ? <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-200 text-amber-900">⚠️ HĐ ma</span>
+                      : <span className="text-xs text-slate-400">Hợp lệ</span>
+                  )}
                 </td>
               </tr>;
             })}

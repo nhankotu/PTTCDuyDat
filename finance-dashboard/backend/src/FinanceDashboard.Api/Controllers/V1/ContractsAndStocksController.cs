@@ -73,10 +73,19 @@ public class ContractsV1Controller : ControllerBase
             if ((long)exportPage * 10000 >= batch.TotalCount) break;
         }
 
+        static string FormatStatusVi(string? st) => st switch
+        {
+            "APPROVED" => "Đã duyệt",
+            "LIQUIDATED" => "Đã tất toán",
+            "PENDING" => "Chưa duyệt",
+            "ADVANCING" => "Đang ứng tiền",
+            _ => st ?? ""
+        };
+
         var sb = new StringBuilder();
         // UTF-8 BOM
         sb.Append('\uFEFF');
-        sb.AppendLine("Số phụ lục,Mã KH,Tên khách hàng,Sản phẩm,Kỳ hạn,Ngày ký,Mã Sale,Sale thụ hưởng,Trạng thái,Kênh,Giá trị gốc (VNĐ),Số tiền đã tất toán (VNĐ),Số dư (VNĐ)");
+        sb.AppendLine("Số phụ lục,Phân loại,Mã KH,Tên khách hàng,Sản phẩm,Kỳ hạn,Ngày ký,Mã Sale,Sale thụ hưởng,Trạng thái,Kênh,Giá trị gốc (VNĐ),Số tiền đã tất toán (VNĐ),Số dư (VNĐ)");
 
         foreach (var c in list)
         {
@@ -94,6 +103,7 @@ public class ContractsV1Controller : ControllerBase
 
             sb.AppendLine(string.Join(",",
                 Escape(c.AppendixNumber),
+                Escape(c.IsGhost ? "HỢP ĐỒNG MA" : "Hợp lệ"),
                 Escape(c.CustomerCode),
                 Escape(c.CustomerName),
                 Escape(c.ProductName),
@@ -101,7 +111,7 @@ public class ContractsV1Controller : ControllerBase
                 Escape(c.SignDate),
                 Escape(c.SaleId),
                 Escape(c.EffectiveSaleId),
-                Escape(c.Status),
+                Escape(FormatStatusVi(c.Status)),
                 Escape(c.Channel),
                 Escape(c.ContractValue),
                 Escape(c.SettledAmount),
@@ -139,12 +149,40 @@ public class ContractsV1Controller : ControllerBase
             if ((long)exportPage * 10000 >= batch.TotalCount) break;
         }
 
+        static string SafeHtmlText(string? val)
+        {
+            if (string.IsNullOrEmpty(val)) return "";
+            var clean = val;
+            if (clean.StartsWith("=") || clean.StartsWith("+") || clean.StartsWith("-") || clean.StartsWith("@"))
+                clean = "'" + clean;
+            return System.Net.WebUtility.HtmlEncode(clean);
+        }
+
+        static string FormatMoneyExcel(string? val)
+        {
+            if (val == null) return "Không có quyền";
+            if (decimal.TryParse(val, NumberStyles.Any, CultureInfo.InvariantCulture, out var d))
+                return d.ToString("#,##0.##", CultureInfo.InvariantCulture);
+            return SafeHtmlText(val);
+        }
+
+        static string FormatStatusViExcel(string? st) => st switch
+        {
+            "APPROVED" => "Đã duyệt",
+            "LIQUIDATED" => "Đã tất toán",
+            "PENDING" => "Chưa duyệt",
+            "ADVANCING" => "Đang ứng tiền",
+            _ => st ?? ""
+        };
+
         var sb = new StringBuilder();
         sb.AppendLine("<!DOCTYPE html>");
         sb.AppendLine("<html><head><meta charset=\"utf-8\"><style>");
         sb.AppendLine("table { border-collapse: collapse; width: 100%; font-family: Arial, sans-serif; font-size: 11pt; }");
         sb.AppendLine("th { background-color: #0f172a; color: #ffffff; font-weight: bold; border: 1px solid #cbd5e1; padding: 8px; text-align: left; }");
         sb.AppendLine("td { border: 1px solid #cbd5e1; padding: 6px 8px; }");
+        sb.AppendLine(".txt { mso-number-format:'\\@'; }");
+        sb.AppendLine(".num { mso-number-format:'\\#\\,\\#\\#0'; text-align: right; }");
         sb.AppendLine(".ghost { background-color: #FEF08A !important; }"); // Yellow highlight for ghost contract
         sb.AppendLine(".text-right { text-align: right; }");
         sb.AppendLine(".text-center { text-align: center; }");
@@ -159,20 +197,20 @@ public class ContractsV1Controller : ControllerBase
             var rowClass = c.IsGhost ? " class=\"ghost\"" : "";
             var ghostLabel = c.IsGhost ? "HỢP ĐỒNG MA" : "Hợp lệ";
             sb.AppendLine($"<tr{rowClass}>");
-            sb.AppendLine($"<td>{System.Net.WebUtility.HtmlEncode(c.AppendixNumber)}</td>");
-            sb.AppendLine($"<td><b>{System.Net.WebUtility.HtmlEncode(ghostLabel)}</b></td>");
-            sb.AppendLine($"<td>{System.Net.WebUtility.HtmlEncode(c.CustomerCode)}</td>");
-            sb.AppendLine($"<td>{System.Net.WebUtility.HtmlEncode(c.CustomerName)}</td>");
-            sb.AppendLine($"<td>{System.Net.WebUtility.HtmlEncode(c.ProductName)}</td>");
-            sb.AppendLine($"<td>{System.Net.WebUtility.HtmlEncode(c.Term)}</td>");
-            sb.AppendLine($"<td class=\"text-center\">{System.Net.WebUtility.HtmlEncode(c.SignDate)}</td>");
-            sb.AppendLine($"<td>{System.Net.WebUtility.HtmlEncode(c.SaleId)}</td>");
-            sb.AppendLine($"<td>{System.Net.WebUtility.HtmlEncode(c.EffectiveSaleId)}</td>");
-            sb.AppendLine($"<td>{System.Net.WebUtility.HtmlEncode(c.Status)}</td>");
-            sb.AppendLine($"<td>{System.Net.WebUtility.HtmlEncode(c.Channel)}</td>");
-            sb.AppendLine($"<td class=\"text-right\">{System.Net.WebUtility.HtmlEncode(c.ContractValue ?? "-")}</td>");
-            sb.AppendLine($"<td class=\"text-right\">{System.Net.WebUtility.HtmlEncode(c.SettledAmount ?? "-")}</td>");
-            sb.AppendLine($"<td class=\"text-right\">{System.Net.WebUtility.HtmlEncode(c.Balance ?? "-")}</td>");
+            sb.AppendLine($"<td class=\"txt\">{SafeHtmlText(c.AppendixNumber)}</td>");
+            sb.AppendLine($"<td><b>{SafeHtmlText(ghostLabel)}</b></td>");
+            sb.AppendLine($"<td class=\"txt\">{SafeHtmlText(c.CustomerCode)}</td>");
+            sb.AppendLine($"<td class=\"txt\">{SafeHtmlText(c.CustomerName)}</td>");
+            sb.AppendLine($"<td class=\"txt\">{SafeHtmlText(c.ProductName)}</td>");
+            sb.AppendLine($"<td class=\"txt\">{SafeHtmlText(c.Term)}</td>");
+            sb.AppendLine($"<td class=\"text-center txt\">{SafeHtmlText(c.SignDate)}</td>");
+            sb.AppendLine($"<td class=\"txt\">{SafeHtmlText(c.SaleId)}</td>");
+            sb.AppendLine($"<td class=\"txt\">{SafeHtmlText(c.EffectiveSaleId)}</td>");
+            sb.AppendLine($"<td class=\"txt\">{SafeHtmlText(FormatStatusViExcel(c.Status))}</td>");
+            sb.AppendLine($"<td class=\"txt\">{SafeHtmlText(c.Channel)}</td>");
+            sb.AppendLine($"<td class=\"num\">{FormatMoneyExcel(c.ContractValue)}</td>");
+            sb.AppendLine($"<td class=\"num\">{FormatMoneyExcel(c.SettledAmount)}</td>");
+            sb.AppendLine($"<td class=\"num\">{FormatMoneyExcel(c.Balance)}</td>");
             sb.AppendLine("</tr>");
         }
 
@@ -192,7 +230,8 @@ public class ContractsV1Controller : ControllerBase
         if (string.IsNullOrWhiteSpace(req.AppendixNumber))
             return BadRequest(new { message = "Số phụ lục không được để trống." });
 
-        var success = await _reportingService.MarkGhostContractAsync(req.AppendixNumber);
+        var actor = User.Identity?.Name ?? "admin";
+        var success = await _reportingService.MarkGhostContractAsync(req.AppendixNumber, actor);
         return Ok(new { success, message = $"Đã đánh dấu hợp đồng {req.AppendixNumber} là hợp đồng ma." });
     }
 

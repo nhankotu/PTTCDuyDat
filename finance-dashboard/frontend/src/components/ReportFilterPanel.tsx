@@ -12,6 +12,29 @@ export const emptyDimensions = (): DimensionFilters => ({
   excludeSafeNewCust: false,
   excludeGhost: false,
 });
+
+export const normalizeDimensions = (d?: Partial<DimensionFilters> | null): DimensionFilters => ({
+  products: Array.isArray(d?.products) ? d!.products : [],
+  terms: Array.isArray(d?.terms) ? d!.terms : [],
+  channels: Array.isArray(d?.channels) ? d!.channels : [],
+  statuses: Array.isArray(d?.statuses) ? d!.statuses : [],
+  excludeTenDays: Boolean(d?.excludeTenDays),
+  excludeSafeNewCust: Boolean(d?.excludeSafeNewCust),
+  excludeGhost: Boolean(d?.excludeGhost),
+});
+
+export const countActiveFilters = (d?: DimensionFilters | null): number => {
+  if (!d) return 0;
+  return (
+    (d.products?.length || 0) +
+    (d.terms?.length || 0) +
+    (d.channels?.length || 0) +
+    (d.statuses?.length || 0) +
+    (d.excludeTenDays ? 1 : 0) +
+    (d.excludeSafeNewCust ? 1 : 0) +
+    (d.excludeGhost ? 1 : 0)
+  );
+};
 type DimensionKey = 'products' | 'terms' | 'channels' | 'statuses';
 const labels: Record<DimensionKey, string> = { products: 'Sản phẩm', terms: 'Kỳ hạn', channels: 'Kênh bán', statuses: 'Trạng thái hợp đồng' };
 const statusLabels: Record<string, string> = { APPROVED: 'Đã duyệt', LIQUIDATED: 'Đã tất toán', PENDING: 'Chưa duyệt', ADVANCING: 'Đang ứng tiền' };
@@ -35,7 +58,7 @@ export function ReportFilterPanel({ value, onChange, context, embedded }: {
     return () => { active = false; };
   }, [key, revision]);
   const fields = Object.keys(labels) as DimensionKey[];
-  const count = fields.reduce((sum, field) => sum + (value[field]?.length || 0), 0);
+  const count = countActiveFilters(value);
 
   const innerContent = (
     <div className="space-y-4">
@@ -109,7 +132,26 @@ export function ReportFilterPanel({ value, onChange, context, embedded }: {
           </div>
         </fieldset>)}
       </div>
-      {count > 0 && <div className="flex flex-wrap gap-2">{fields.flatMap(field => value[field].map(option => <button key={`${field}:${option}`} onClick={() => onChange({ ...value, [field]: value[field].filter(v => v !== option) })} className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-blue-800 px-3 py-1 text-xs cursor-pointer" aria-label={`Bỏ ${labels[field]} ${statusLabels[option] || option}`}>{labels[field]}: {statusLabels[option] || option}<X size={12} /></button>))}</div>}
+      {count > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {value.excludeTenDays && (
+            <button onClick={() => onChange({ ...value, excludeTenDays: false })} className="inline-flex items-center gap-1 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200 px-3 py-1 text-xs font-semibold cursor-pointer">
+              ⚡ Loại HĐ ≤ 10 ngày <X size={12} />
+            </button>
+          )}
+          {value.excludeSafeNewCust && (
+            <button onClick={() => onChange({ ...value, excludeSafeNewCust: false })} className="inline-flex items-center gap-1 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200 px-3 py-1 text-xs font-semibold cursor-pointer">
+              ⚡ KH mới Non-Safe ≥ 1Tr <X size={12} />
+            </button>
+          )}
+          {value.excludeGhost && (
+            <button onClick={() => onChange({ ...value, excludeGhost: false })} className="inline-flex items-center gap-1 rounded-full bg-amber-50 text-amber-900 border border-amber-200 px-3 py-1 text-xs font-semibold cursor-pointer">
+              ⚡ Loại HĐ ma <X size={12} />
+            </button>
+          )}
+          {fields.flatMap(field => value[field].map(option => <button key={`${field}:${option}`} onClick={() => onChange({ ...value, [field]: value[field].filter(v => v !== option) })} className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-blue-800 px-3 py-1 text-xs cursor-pointer" aria-label={`Bỏ ${labels[field]} ${statusLabels[option] || option}`}>{labels[field]}: {statusLabels[option] || option}<X size={12} /></button>))}
+        </div>
+      )}
     </div>
   );
 

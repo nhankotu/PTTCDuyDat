@@ -23,6 +23,7 @@ public class ReportFilters
     public bool ExcludeTenDays { get; set; } = false;
     public bool ExcludeSafeNewCust { get; set; } = false;
     public bool ExcludeGhost { get; set; } = false;
+    public string GhostFilter { get; set; } = "all"; // all, only_ghost, non_ghost
 
     public void Validate(bool contracts = false)
     {
@@ -30,7 +31,9 @@ public class ReportFilters
             MinValue < 0 || MaxValue < 0 || MinBalance < 0 || MaxBalance < 0 ||
             (Search?.Length ?? 0) > 200 || Products.Length + Terms.Length + Channels.Length + Statuses.Length > 200)
             throw new ScopeAccessException(400, "INVALID_FILTER", "Khoảng tiền hoặc số lượng điều kiện lọc không hợp lệ.");
-        if (!contracts && (Search != null || MinValue != null || MaxValue != null || MinBalance != null || MaxBalance != null || ChangedSale != null))
+        if (GhostFilter is not ("all" or "only_ghost" or "non_ghost"))
+            throw new ScopeAccessException(400, "INVALID_GHOST_FILTER", "Bộ lọc hợp đồng ma không hợp lệ.");
+        if (!contracts && (Search != null || MinValue != null || MaxValue != null || MinBalance != null || MaxBalance != null || ChangedSale != null || GhostFilter != "all"))
             throw new ScopeAccessException(400, "UNSUPPORTED_FILTER", "Điều kiện chi tiết chỉ áp dụng cho danh sách hợp đồng.");
         if (Basis is not ("sales" or "balance"))
             throw new ScopeAccessException(400, "INVALID_BASIS", "Loại danh sách hợp đồng không hợp lệ.");
@@ -62,7 +65,8 @@ public class ReportFilters
         $"GREATEST(0, {rc}.contract_value - {SettledExpr(rc, s)})";
 
     public static string BalanceClause => $@"
-        WHERE (@MinBalance::numeric IS NULL OR {BalanceExpr("r", "s")} >= @MinBalance)
+        WHERE (NOT @OnlyPositiveBalance OR {BalanceExpr("r", "s")} > 0)
+          AND (@MinBalance::numeric IS NULL OR {BalanceExpr("r", "s")} >= @MinBalance)
           AND (@MaxBalance::numeric IS NULL OR {BalanceExpr("r", "s")} <= @MaxBalance)
           AND ((@MinBalance::numeric IS NULL AND @MaxBalance::numeric IS NULL) OR @FilterAll
                OR r.effective_sale_id = ANY(@FilterBalanceScope))";
@@ -81,6 +85,8 @@ public class ReportFilters
         args.Add("ExcludeTenDays", ExcludeTenDays);
         args.Add("ExcludeSafeNewCust", ExcludeSafeNewCust);
         args.Add("ExcludeGhost", ExcludeGhost);
+        args.Add("GhostFilter", GhostFilter);
+        args.Add("OnlyPositiveBalance", Basis == "balance");
         return args;
     }
 

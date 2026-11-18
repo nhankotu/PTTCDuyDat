@@ -24,6 +24,22 @@ public class ReportingEngineV2Service
         _logger = logger;
     }
 
+    private static DateOnly VietnamToday() => DateOnly.FromDateTime(DateTime.UtcNow.AddHours(7));
+
+    private static string NotGhostSql(string alias = "c") =>
+        $"NOT EXISTS (SELECT 1 FROM excluded_contract ex WHERE UPPER(TRIM(ex.appendix_number)) = UPPER(TRIM({alias}.appendix_number)))";
+
+    private static string IsGhostSql(string alias = "c") =>
+        $"EXISTS (SELECT 1 FROM excluded_contract ex WHERE UPPER(TRIM(ex.appendix_number)) = UPPER(TRIM({alias}.appendix_number)))";
+
+    private static string TenDaysRuleSql(string alias = "c", bool hasStatus = true) => $@"(
+        CASE
+          WHEN {(hasStatus ? $"{alias}.status = 'LIQUIDATED' AND " : "")}{alias}.liquidate_date IS NOT NULL
+            THEN ({alias}.liquidate_date - {alias}.sign_date) > 10
+          ELSE (@RefDate - {alias}.sign_date) > 10
+        END
+    )";
+
     private static string? FormatDate(object? val)
     {
         if (val == null) return null;
@@ -143,6 +159,38 @@ public class ReportingEngineV2Service
             ? "AND batch_id = ANY(@ManifestBatches) " 
             : "";
 
+        var vnToday = VietnamToday();
+        var refDate = targetAsOf > vnToday ? targetAsOf : vnToday;
+
+        return await ExecuteKpiCoreAsync(
+            connection, scope, revScopeList, balScopeList, scopeRevClause, scopeBalClause,
+            manifestClause, manifestSettleClause, manifestBatches,
+            fromDate, toDate, targetAsOf, refDate, datasetId,
+            filterEmployeeId, filterProduct, filterTerm, filters,
+            includeExtraCustomerMetrics: true);
+    }
+
+    private async Task<KpiReportResponse> ExecuteKpiCoreAsync(
+        IDbConnection connection,
+        UserAccessScope scope,
+        List<string> revScopeList,
+        List<string> balScopeList,
+        string scopeRevClause,
+        string scopeBalClause,
+        string manifestClause,
+        string manifestSettleClause,
+        List<long> manifestBatches,
+        DateOnly fromDate,
+        DateOnly toDate,
+        DateOnly targetAsOf,
+        DateOnly refDate,
+        Guid? datasetId,
+        string? filterEmployeeId,
+        string? filterProduct,
+        string? filterTerm,
+        ReportFilters filters,
+        bool includeExtraCustomerMetrics)
+    {
         // 1. Total Sales & Sales Metrics (Scope = RevenueScope)
         decimal totalSales = 0m;
         int totalContracts = 0;
@@ -167,16 +215,8 @@ public class ReportingEngineV2Service
                     WHERE c.status IN ('APPROVED', 'LIQUIDATED')
                       AND c.sign_date >= @FromDate AND c.sign_date <= @ToDate
                       AND c.valid_from <= @ToDate AND c.valid_to > @FromDate
-                      AND (@ExcludeGhost = FALSE OR c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract))
-                      AND (
-                        @ExcludeTenDays = FALSE OR (
-                          CASE
-                            WHEN c.status = 'LIQUIDATED' AND c.liquidate_date IS NOT NULL
-                              THEN (c.liquidate_date - c.sign_date) > 10
-                            ELSE (CURRENT_DATE - c.sign_date) > 10
-                          END
-                        )
-                      )
+                      AND (@ExcludeGhost = FALSE OR {NotGhostSql("c")})
+                      AND (@ExcludeTenDays = FALSE OR {TenDaysRuleSql("c")})
                       {manifestClause}
                       {ReportFilters.Clause}
                       {(string.IsNullOrEmpty(filterProduct) ? "" : "AND c.product_name = @FilterProduct ")}
@@ -194,6 +234,7 @@ public class ReportingEngineV2Service
             {
                 FromDate = fromDate,
                 ToDate = toDate,
+                RefDate = refDate,
                 FilterProduct = filterProduct,
                 FilterTerm = filterTerm,
                 FilterEmployeeId = filterEmployeeId,
@@ -209,124 +250,76 @@ public class ReportingEngineV2Service
             }
         }
 
-        // 1b. New Customers (Mục 2): Khi bật ExcludeSafeNewCust -> lọc KH có HĐ khác Safe >= 1Tr lần đầu; nếu tắt -> lấy tổng KH phát sinh kỳ
-        int newCustomers = 0;
-        if (hasRevAccess)
+        // 1b. New Customers (Mục 2): KH có HĐ sản phẩm khác Safe đầu tiên trong kỳ, giá trị >= 1Tr
+        int newCustomers = totalCustomers;
+        if (hasRevAccess && (includeExtraCustomerMetrics || filters.ExcludeSafeNewCust))
         {
-            if (filters.ExcludeSafeNewCust)
-            {
-                var newCustSql = $@"
-                    WITH resolved_contracts AS (
-                        SELECT DISTINCT ON (c.appendix_number)
-                            c.appendix_number,
-                            c.customer_code,
-                            c.contract_value,
-                            c.product_name,
-                            c.sign_date,
-                            COALESCE(e.new_sale_id, c.sale_id) AS effective_sale_id
-                        FROM contract_appendix_version c
-                        LEFT JOIN contract_exception_version e 
-                               ON e.appendix_number = c.appendix_number 
-                              AND e.effective_date <= @ToDate
-                              AND (e.expire_date IS NULL OR e.expire_date > @ToDate)
-                        WHERE c.status IN ('APPROVED', 'LIQUIDATED')
-                          AND c.sign_date >= @FromDate AND c.sign_date <= @ToDate
-                          AND c.valid_from <= @ToDate AND c.valid_to > @FromDate
-                          AND (@ExcludeGhost = FALSE OR c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract))
-                          AND UPPER(c.product_name) NOT LIKE '%SAFE%'
-                          AND c.contract_value >= 1000000
-                          {manifestClause}
-                          {scopeRevClause}
-                        ORDER BY c.appendix_number, c.version_num DESC
-                    )
-                    SELECT COUNT(DISTINCT rc.customer_code) AS NewCustomers
-                    FROM resolved_contracts rc
-                    WHERE NOT EXISTS (
-                        SELECT 1 FROM contract_appendix_version old
-                        WHERE UPPER(TRIM(old.customer_code)) = UPPER(TRIM(rc.customer_code))
-                          AND old.sign_date < @FromDate
-                          AND UPPER(old.product_name) NOT LIKE '%SAFE%'
-                          AND old.contract_value >= 1000000
-                          AND old.status IN ('APPROVED', 'LIQUIDATED')
-                          AND old.is_active_version = TRUE
-                    );";
+            string oldManifestClause = datasetId.HasValue
+                ? "AND old.batch_id = ANY(@ManifestBatches) AND old.valid_from <= @ToDate AND old.valid_to > old.sign_date"
+                : "AND old.is_active_version = TRUE";
 
-                newCustomers = await connection.ExecuteScalarAsync<int>(newCustSql, filters.Bind(new
-                {
-                    FromDate = fromDate,
-                    ToDate = toDate,
-                    FilterEmployeeId = filterEmployeeId,
-                    RevScope = revScopeList.ToArray(),
-                    ManifestBatches = manifestBatches.ToArray()
-                }, scope));
-            }
-            else
+            var newCustSql = $@"
+                WITH resolved_contracts AS (
+                    SELECT DISTINCT ON (c.appendix_number)
+                        c.appendix_number,
+                        c.customer_code,
+                        c.contract_value,
+                        c.product_name,
+                        c.sign_date,
+                        COALESCE(e.new_sale_id, c.sale_id) AS effective_sale_id
+                    FROM contract_appendix_version c
+                    LEFT JOIN contract_exception_version e 
+                           ON e.appendix_number = c.appendix_number 
+                          AND e.effective_date <= @ToDate
+                          AND (e.expire_date IS NULL OR e.expire_date > @ToDate)
+                    WHERE c.status IN ('APPROVED', 'LIQUIDATED')
+                      AND c.sign_date >= @FromDate AND c.sign_date <= @ToDate
+                      AND c.valid_from <= @ToDate AND c.valid_to > @FromDate
+                      AND (@ExcludeGhost = FALSE OR {NotGhostSql("c")})
+                      AND (@ExcludeTenDays = FALSE OR {TenDaysRuleSql("c")})
+                      AND UPPER(c.product_name) NOT LIKE '%SAFE%'
+                      AND c.contract_value >= 1000000
+                      {manifestClause}
+                      {ReportFilters.Clause}
+                      {(string.IsNullOrEmpty(filterProduct) ? "" : "AND c.product_name = @FilterProduct ")}
+                      {(string.IsNullOrEmpty(filterTerm) ? "" : "AND c.term = @FilterTerm ")}
+                      {scopeRevClause}
+                    ORDER BY c.appendix_number, c.version_num DESC
+                )
+                SELECT COUNT(DISTINCT rc.customer_code) AS NewCustomers
+                FROM resolved_contracts rc
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM contract_appendix_version old
+                    WHERE UPPER(TRIM(old.customer_code)) = UPPER(TRIM(rc.customer_code))
+                      AND old.sign_date < @FromDate
+                      AND UPPER(old.product_name) NOT LIKE '%SAFE%'
+                      AND old.contract_value >= 1000000
+                      AND old.status IN ('APPROVED', 'LIQUIDATED')
+                      AND (@ExcludeGhost = FALSE OR {NotGhostSql("old")})
+                      {oldManifestClause}
+                );";
+
+            newCustomers = await connection.ExecuteScalarAsync<int>(newCustSql, filters.Bind(new
             {
-                newCustomers = totalCustomers;
-            }
+                FromDate = fromDate,
+                ToDate = toDate,
+                RefDate = refDate,
+                FilterProduct = filterProduct,
+                FilterTerm = filterTerm,
+                FilterEmployeeId = filterEmployeeId,
+                RevScope = revScopeList.ToArray(),
+                ManifestBatches = manifestBatches.ToArray()
+            }, scope));
         }
 
         // 2. Total Balance (Scope = BalanceScope, as of targetAsOf - R05: Immutability via valid_from / valid_to)
         decimal totalBalance = 0m;
+        int cumulativeCustomers = 0;
         bool hasBalAccess = scope.CanAccessAll || balScopeList.Count > 0;
 
         if (hasBalAccess)
         {
             var balanceSql = $@"
-                WITH resolved_contracts AS (
-                    SELECT DISTINCT ON (c.appendix_number)
-                        c.appendix_number,
-                        c.contract_value,
-                        c.liquidated_amount,
-                        c.liquidate_date,
-                        COALESCE(e.new_sale_id, c.sale_id) AS effective_sale_id
-                    FROM contract_appendix_version c
-                    LEFT JOIN contract_exception_version e 
-                           ON e.appendix_number = c.appendix_number 
-                          AND e.effective_date <= @AsOfDate
-                          AND (e.expire_date IS NULL OR e.expire_date > @AsOfDate)
-                    WHERE c.status IN ('APPROVED', 'LIQUIDATED')
-                      AND c.sign_date <= @AsOfDate
-                      AND c.valid_from <= @AsOfDate AND c.valid_to > @AsOfDate
-                      AND (@ExcludeGhost = FALSE OR c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract))
-                      {manifestClause}
-                      {ReportFilters.Clause}
-                      {(string.IsNullOrEmpty(filterProduct) ? "" : "AND c.product_name = @FilterProduct ")}
-                      {(string.IsNullOrEmpty(filterTerm) ? "" : "AND c.term = @FilterTerm ")}
-                      {scopeBalClause}
-                    ORDER BY c.appendix_number, c.version_num DESC
-                ),
-                settlements AS (
-                    SELECT 
-                        appendix_number,
-                        SUM(settlement_amount) AS total_settled
-                    FROM contract_settlement_transaction
-                    WHERE is_active_version = TRUE
-                      AND settlement_date <= @AsOfDate
-                      {manifestSettleClause}
-                    GROUP BY appendix_number
-                )
-                SELECT 
-                    COALESCE(SUM({ReportFilters.BalanceExpr("rc", "s")}), 0) AS TotalBalance
-                FROM resolved_contracts rc
-                LEFT JOIN settlements s ON s.appendix_number = rc.appendix_number;";
-
-            totalBalance = await connection.ExecuteScalarAsync<decimal>(balanceSql, filters.Bind(new
-            {
-                AsOfDate = targetAsOf,
-                FilterProduct = filterProduct,
-                FilterTerm = filterTerm,
-                FilterEmployeeId = filterEmployeeId,
-                BalScope = balScopeList.ToArray(),
-                ManifestBatches = manifestBatches.ToArray()
-            }, scope));
-        }
-
-        // 3. Cumulative Customers (Mục 3): Unique KH có số dư > 0 tại asOfDate
-        int cumulativeCustomers = 0;
-        if (hasBalAccess)
-        {
-            var cumCustSql = $@"
                 WITH resolved_contracts AS (
                     SELECT DISTINCT ON (c.appendix_number)
                         c.appendix_number,
@@ -343,9 +336,11 @@ public class ReportingEngineV2Service
                     WHERE c.status IN ('APPROVED', 'LIQUIDATED')
                       AND c.sign_date <= @AsOfDate
                       AND c.valid_from <= @AsOfDate AND c.valid_to > @AsOfDate
-                      AND (@ExcludeGhost = FALSE OR c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract))
+                      AND (@ExcludeGhost = FALSE OR {NotGhostSql("c")})
                       {manifestClause}
                       {ReportFilters.Clause}
+                      {(string.IsNullOrEmpty(filterProduct) ? "" : "AND c.product_name = @FilterProduct ")}
+                      {(string.IsNullOrEmpty(filterTerm) ? "" : "AND c.term = @FilterTerm ")}
                       {scopeBalClause}
                     ORDER BY c.appendix_number, c.version_num DESC
                 ),
@@ -360,13 +355,18 @@ public class ReportingEngineV2Service
                     GROUP BY appendix_number
                 ),
                 with_balance AS (
-                    SELECT rc.customer_code, {ReportFilters.BalanceExpr("rc", "s")} AS balance
+                    SELECT
+                        rc.customer_code,
+                        {ReportFilters.BalanceExpr("rc", "s")} AS balance
                     FROM resolved_contracts rc
                     LEFT JOIN settlements s ON s.appendix_number = rc.appendix_number
                 )
-                SELECT COUNT(DISTINCT customer_code) FROM with_balance WHERE balance > 0;";
+                SELECT 
+                    COALESCE(SUM(balance), 0) AS TotalBalance,
+                    COUNT(DISTINCT CASE WHEN balance > 0 THEN customer_code END)::int AS CumulativeCustomers
+                FROM with_balance;";
 
-            cumulativeCustomers = await connection.ExecuteScalarAsync<int>(cumCustSql, filters.Bind(new
+            var balResult = await connection.QueryFirstOrDefaultAsync<dynamic>(balanceSql, filters.Bind(new
             {
                 AsOfDate = targetAsOf,
                 FilterProduct = filterProduct,
@@ -375,6 +375,12 @@ public class ReportingEngineV2Service
                 BalScope = balScopeList.ToArray(),
                 ManifestBatches = manifestBatches.ToArray()
             }, scope));
+
+            if (balResult != null)
+            {
+                totalBalance = (decimal)balResult.totalbalance;
+                cumulativeCustomers = (int)balResult.cumulativecustomers;
+            }
         }
 
         // Calculate averages with AwayFromZero
@@ -432,10 +438,72 @@ public class ReportingEngineV2Service
         filters.Validate();
         var points = new List<TrendPointDto>();
         var intervals = GenerateTimeIntervals(fromDate, toDate, period, weekMode, customIntervalsJson);
+        if (intervals.Count == 0) return points;
+
+        var scope = await _scopeService.GetReportScopeAsync(userId, viewEmployeeId, view, datasetId);
+        if (!scope.CanAccessAll && scope.RevenueScope.Count == 0 && scope.BalanceScope.Count == 0)
+        {
+            return intervals.Select(iv => new TrendPointDto
+            {
+                PeriodLabel = iv.Label,
+                FromDate = iv.Start.ToString("yyyy-MM-dd"),
+                ToDate = iv.End.ToString("yyyy-MM-dd"),
+                TotalSales = null,
+                TotalBalance = null,
+                ContractCount = null,
+                CustomerCount = null
+            }).ToList();
+        }
+
+        using var connection = _db.CreateNpgsqlConnection();
+        await connection.OpenAsync();
+
+        List<long> manifestBatches = new();
+        if (datasetId.HasValue)
+        {
+            var dataset = await connection.QueryFirstOrDefaultAsync<ReportDataset>(
+                "SELECT * FROM report_dataset WHERE id = @DatasetId;", new { DatasetId = datasetId.Value });
+            if (dataset == null || !dataset.IsPublished)
+            {
+                return intervals.Select(iv => new TrendPointDto
+                {
+                    PeriodLabel = iv.Label,
+                    FromDate = iv.Start.ToString("yyyy-MM-dd"),
+                    ToDate = iv.End.ToString("yyyy-MM-dd"),
+                    TotalSales = null,
+                    TotalBalance = null,
+                    ContractCount = null,
+                    CustomerCount = null
+                }).ToList();
+            }
+
+            var batchIds = (await connection.QueryAsync<long?>(
+                "SELECT source_batch_id FROM dataset_source_manifest WHERE dataset_id = @DatasetId AND source_batch_id IS NOT NULL;",
+                new { DatasetId = datasetId.Value })).Where(b => b.HasValue).Select(b => b!.Value).ToList();
+            manifestBatches.AddRange(batchIds);
+        }
+
+        var (revScopeList, balScopeList) = ResolveScopes(scope, filterEmployeeId);
+        string scopeRevClause = !string.IsNullOrEmpty(filterEmployeeId) && scope.CanAccessAll
+            ? "AND COALESCE(e.new_sale_id, c.sale_id) = @FilterEmployeeId "
+            : (!scope.CanAccessAll ? "AND COALESCE(e.new_sale_id, c.sale_id) = ANY(@RevScope) " : "");
+        string scopeBalClause = !string.IsNullOrEmpty(filterEmployeeId) && scope.CanAccessAll
+            ? "AND COALESCE(e.new_sale_id, c.sale_id) = @FilterEmployeeId "
+            : (!scope.CanAccessAll ? "AND COALESCE(e.new_sale_id, c.sale_id) = ANY(@BalScope) " : "");
+        string manifestClause = datasetId.HasValue ? "AND c.batch_id = ANY(@ManifestBatches) " : "";
+        string manifestSettleClause = datasetId.HasValue ? "AND batch_id = ANY(@ManifestBatches) " : "";
+
+        var vnToday = VietnamToday();
+        var outerRefDate = toDate > vnToday ? toDate : vnToday;
 
         foreach (var (pStart, pEnd, label) in intervals)
         {
-            var kpi = await GetKpiReportAsync(userId, pStart, pEnd, asOfDate: pEnd, filterEmployeeId: filterEmployeeId, datasetId: datasetId, viewEmployeeId: viewEmployeeId, view: view, filters: filters);
+            var kpi = await ExecuteKpiCoreAsync(
+                connection, scope, revScopeList, balScopeList, scopeRevClause, scopeBalClause,
+                manifestClause, manifestSettleClause, manifestBatches,
+                pStart, pEnd, targetAsOf: pEnd, refDate: outerRefDate, datasetId: datasetId,
+                filterEmployeeId: filterEmployeeId, filterProduct: null, filterTerm: null,
+                filters: filters, includeExtraCustomerMetrics: false);
 
             points.Add(new TrendPointDto
             {
@@ -445,7 +513,7 @@ public class ReportingEngineV2Service
                 TotalSales = kpi.Metrics.TotalSales,
                 TotalBalance = kpi.Metrics.TotalBalance,
                 ContractCount = kpi.Metrics.TotalContracts,
-                CustomerCount = kpi.Metrics.TotalCustomers
+                CustomerCount = filters.ExcludeSafeNewCust ? kpi.Metrics.NewCustomers : kpi.Metrics.TotalCustomers
             });
         }
 
@@ -524,6 +592,9 @@ public class ReportingEngineV2Service
             ? "AND batch_id = ANY(@ManifestBatches) " 
             : "";
 
+        var vnToday = VietnamToday();
+        var refDate = asOfDate > vnToday ? asOfDate : vnToday;
+
         var sql = $@"
             WITH resolved_contracts AS (
                 SELECT DISTINCT ON (c.appendix_number)
@@ -536,6 +607,7 @@ public class ReportingEngineV2Service
                     c.product_name,
                     c.term,
                     c.channel,
+                    c.status,
                     c.sale_id,
                     c.sale_name,
                     COALESCE(e.new_sale_id, c.sale_id) AS effective_sale_id
@@ -546,7 +618,7 @@ public class ReportingEngineV2Service
                       AND (e.expire_date IS NULL OR e.expire_date > @ToDate)
                 WHERE c.status IN ('APPROVED', 'LIQUIDATED')
                   AND c.valid_from <= @ToDate AND c.valid_to > @FromDate
-                  AND (@ExcludeGhost = FALSE OR c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract))
+                  AND (@ExcludeGhost = FALSE OR {NotGhostSql("c")})
                   {manifestClause}
                   {ReportFilters.Clause}
                 ORDER BY c.appendix_number, c.version_num DESC
@@ -567,36 +639,15 @@ public class ReportingEngineV2Service
                 BOOL_OR(@AllAccess OR rc.effective_sale_id = ANY(@RevScope)) AS HasRevenueAccess,
                 BOOL_OR(@AllAccess OR rc.effective_sale_id = ANY(@BalScope)) AS HasBalanceAccess,
                 COALESCE(SUM(CASE WHEN rc.sign_date >= @FromDate AND rc.sign_date <= @ToDate {revFilter}
-                                  AND (
-                                    @ExcludeTenDays = FALSE OR (
-                                      CASE
-                                        WHEN rc.liquidate_date IS NOT NULL THEN (rc.liquidate_date - rc.sign_date) > 10
-                                        ELSE (CURRENT_DATE - rc.sign_date) > 10
-                                      END
-                                    )
-                                  )
+                                  AND (@ExcludeTenDays = FALSE OR {TenDaysRuleSql("rc")})
                                   THEN rc.contract_value ELSE 0 END), 0) AS TotalSales,
                 COALESCE(SUM(CASE WHEN rc.sign_date <= @AsOfDate {balFilter}
                                   THEN {ReportFilters.BalanceExpr("rc", "s")} ELSE 0 END), 0) AS TotalBalance,
                 COUNT(DISTINCT CASE WHEN rc.sign_date >= @FromDate AND rc.sign_date <= @ToDate {revFilter}
-                                    AND (
-                                      @ExcludeTenDays = FALSE OR (
-                                        CASE
-                                          WHEN rc.liquidate_date IS NOT NULL THEN (rc.liquidate_date - rc.sign_date) > 10
-                                          ELSE (CURRENT_DATE - rc.sign_date) > 10
-                                        END
-                                      )
-                                    )
+                                    AND (@ExcludeTenDays = FALSE OR {TenDaysRuleSql("rc")})
                                     THEN rc.appendix_number END) AS ContractCount,
                 COUNT(DISTINCT CASE WHEN rc.sign_date >= @FromDate AND rc.sign_date <= @ToDate {revFilter}
-                                    AND (
-                                      @ExcludeTenDays = FALSE OR (
-                                        CASE
-                                          WHEN rc.liquidate_date IS NOT NULL THEN (rc.liquidate_date - rc.sign_date) > 10
-                                          ELSE (CURRENT_DATE - rc.sign_date) > 10
-                                        END
-                                      )
-                                    )
+                                    AND (@ExcludeTenDays = FALSE OR {TenDaysRuleSql("rc")})
                                     THEN rc.customer_code END) AS CustomerCount
             FROM resolved_contracts rc
             LEFT JOIN settlements s ON s.appendix_number = rc.appendix_number
@@ -610,6 +661,7 @@ public class ReportingEngineV2Service
             FromDate = fromDate,
             ToDate = toDate,
             AsOfDate = asOfDate,
+            RefDate = refDate,
             AllAccess = scope.CanAccessAll,
             FilterEmployeeId = filterEmployeeId,
             RevScope = revScopeList.ToArray(),
@@ -701,6 +753,18 @@ public class ReportingEngineV2Service
             ? "AND batch_id = ANY(@ManifestBatches) " 
             : "";
 
+        var vnToday = VietnamToday();
+        var refDate = asOfDate > vnToday ? asOfDate : vnToday;
+        string ghostRowClause = filters.GhostFilter switch
+        {
+            "only_ghost" => $"AND {IsGhostSql("c")} ",
+            "non_ghost" => $"AND {NotGhostSql("c")} ",
+            _ => $"AND (@ExcludeGhost = FALSE OR {NotGhostSql("c")}) "
+        };
+        string tenDayClause = filters.Basis == "balance"
+            ? ""
+            : $"AND (@ExcludeTenDays = FALSE OR {TenDaysRuleSql("c")}) ";
+
         var sql = $@"
             WITH resolved AS (
                 SELECT DISTINCT ON (c.appendix_number)
@@ -726,16 +790,8 @@ public class ReportingEngineV2Service
                       AND (e.expire_date IS NULL OR e.expire_date > @AsOfDate)
                 WHERE c.status IN ('APPROVED', 'LIQUIDATED')
                   {(filters.Basis == "balance" ? "AND c.sign_date <= @AsOfDate" : "AND c.sign_date >= @FromDate AND c.sign_date <= @ToDate")}
-                  AND (@ExcludeGhost = FALSE OR c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract))
-                  AND (
-                    @ExcludeTenDays = FALSE OR (
-                      CASE
-                        WHEN c.status = 'LIQUIDATED' AND c.liquidate_date IS NOT NULL
-                          THEN (c.liquidate_date - c.sign_date) > 10
-                        ELSE (CURRENT_DATE - c.sign_date) > 10
-                      END
-                    )
-                  )
+                  {ghostRowClause}
+                  {tenDayClause}
                   AND c.valid_from <= @AsOfDate AND c.valid_to > @AsOfDate
                   {manifestClause}
                   {ReportFilters.Clause}
@@ -758,10 +814,9 @@ public class ReportingEngineV2Service
                 r.*,
                 {ReportFilters.SettledExpr("r", "s")} AS settled_amount,
                 {ReportFilters.BalanceExpr("r", "s")} AS balance,
-                (ex.appendix_number IS NOT NULL) AS is_ghost
+                {IsGhostSql("r")} AS is_ghost
             FROM resolved r
             LEFT JOIN settlements s ON s.appendix_number = r.appendix_number
-            LEFT JOIN excluded_contract ex ON ex.appendix_number = r.appendix_number
             {ReportFilters.BalanceClause}
             ORDER BY {filters.OrderBy}
             OFFSET @Offset LIMIT @Limit;";
@@ -771,6 +826,7 @@ public class ReportingEngineV2Service
             FromDate = fromDate,
             ToDate = toDate,
             AsOfDate = asOfDate,
+            RefDate = refDate,
             FilterProduct = filterProduct,
             AllAccess = scope.CanAccessAll,
             FilterEmployeeId = filterEmployeeId,
@@ -934,19 +990,18 @@ public class ReportingEngineV2Service
         };
     }
 
-    public async Task<bool> MarkGhostContractAsync(string appendixNumber)
+    public async Task<bool> MarkGhostContractAsync(string appendixNumber, string? markedBy = null)
     {
         appendixNumber = appendixNumber.Trim();
         using var connection = _db.CreateNpgsqlConnection();
         await connection.OpenAsync();
-        var exists = await connection.ExecuteScalarAsync<int>(
-            "SELECT COUNT(1) FROM excluded_contract WHERE UPPER(TRIM(appendix_number)) = UPPER(@appNo);",
-            new { appNo = appendixNumber });
-        if (exists > 0) return true;
-
-        await connection.ExecuteAsync(
-            "INSERT INTO excluded_contract (batch_id, appendix_number) VALUES (0, @appNo);",
-            new { appNo = appendixNumber });
+        await connection.ExecuteAsync(@"
+            INSERT INTO excluded_contract (batch_id, appendix_number, marked_by, marked_at)
+            SELECT NULL, @appNo, @markedBy, now()
+            WHERE NOT EXISTS (
+                SELECT 1 FROM excluded_contract WHERE UPPER(TRIM(appendix_number)) = UPPER(@appNo)
+            );",
+            new { appNo = appendixNumber, markedBy = markedBy ?? "admin" });
         return true;
     }
 
@@ -980,7 +1035,8 @@ public class ReportingEngineV2Service
                 SELECT source_batch_id FROM dataset_source_manifest WHERE dataset_id = @datasetId))",
             new { toDate, datasetId, allAccess = scope.CanAccessAll,
                 ids = scope.RevenueScope.Union(scope.BalanceScope).ToArray() })).ToList();
-        string[] Values(Func<dynamic, object?> pick) => rows.Select(r => (string)(pick(r)?.ToString() ?? ""))
+        string[] Values(Func<dynamic, object?> pick) => rows.Select(r => (string)(pick(r)?.ToString()?.Trim() ?? ""))
+            .Where(v => !string.IsNullOrWhiteSpace(v))
             .Distinct().OrderBy(v => v).ToArray();
         return new { products = Values(r => r.product_name), terms = Values(r => r.term),
             channels = Values(r => r.channel), statuses = Values(r => r.status) };
@@ -1011,7 +1067,7 @@ public class ReportingEngineV2Service
         return (rev, bal);
     }
 
-    private List<(DateOnly Start, DateOnly End, string Label)> GenerateTimeIntervals(
+    public static List<(DateOnly Start, DateOnly End, string Label)> GenerateTimeIntervals(
         DateOnly fromDate,
         DateOnly toDate,
         string period,
@@ -1055,7 +1111,7 @@ public class ReportingEngineV2Service
 
             case "week":
             default:
-                // Check if custom intervals provided
+                // Check if custom intervals provided and clip to [fromDate, toDate]
                 if (!string.IsNullOrWhiteSpace(customIntervalsJson))
                 {
                     try
@@ -1070,7 +1126,10 @@ public class ReportingEngineV2Service
                             {
                                 if (DateOnly.TryParse(item.Start, out var s) && DateOnly.TryParse(item.End, out var e))
                                 {
-                                    list.Add((s, e, string.IsNullOrWhiteSpace(item.Label) ? $"{s:dd/MM} - {e:dd/MM}" : item.Label));
+                                    if (e < s || e < fromDate || s > toDate) continue;
+                                    var actualStart = s < fromDate ? fromDate : s;
+                                    var actualEnd = e > toDate ? toDate : e;
+                                    list.Add((actualStart, actualEnd, string.IsNullOrWhiteSpace(item.Label) ? $"{actualStart:dd/MM} - {actualEnd:dd/MM}" : item.Label));
                                 }
                             }
                             if (list.Count > 0) return list;
@@ -1189,7 +1248,6 @@ public class ReportingEngineV2Service
                       AND e.is_active_version = TRUE
                 WHERE c.sign_date IS NOT NULL
                   AND c.status IN ('APPROVED', 'LIQUIDATED')
-                  AND c.appendix_number NOT IN (SELECT appendix_number FROM excluded_contract)
                   {manifestOrActiveClause}
                 ORDER BY c.appendix_number, c.version_num DESC
             ),

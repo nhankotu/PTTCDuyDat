@@ -127,7 +127,7 @@ export const ImportV2Modal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =
             </div>
             <div>
               <h2 className="text-base font-extrabold tracking-tight">
-                Nạp Dữ Liệu 5 Nguồn (Lean Schema Import & Preview)
+                Nạp Dữ Liệu 6 Nguồn (Lean Schema Import & Preview)
               </h2>
               <p className="text-xs text-slate-400">
                 Phân loại tự động, phát hiện chi tiết dòng lỗi và ngăn ngừa nạp trùng lặp
@@ -165,6 +165,7 @@ export const ImportV2Modal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =
                 <option value="STOCK">3. Bảng HĐ Chứng khoán (9 trường)</option>
                 <option value="EXCEPTION">4. Bảng Ngoại lệ (15 trường)</option>
                 <option value="EMPLOYEE">5. Bảng Nhân sự (11 trường)</option>
+                <option value="GHOST">6. Danh sách Hợp đồng ma (Cấu trúc Phụ lục / Số PL)</option>
               </select>
             </div>
 

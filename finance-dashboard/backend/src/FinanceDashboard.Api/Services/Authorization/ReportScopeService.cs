@@ -174,10 +174,7 @@ public partial class DataAccessScopeService
         {
             "BRANCH" when !string.IsNullOrEmpty(node) => employees.Where(e => string.Equals(e.Branch, node, StringComparison.OrdinalIgnoreCase)).Select(e => e.EmployeeId),
             "REGION" when !string.IsNullOrEmpty(node) => employees.Where(e => string.Equals(e.Region, node, StringComparison.OrdinalIgnoreCase)).Select(e => e.EmployeeId),
-            // Legacy name-only department scopes require a branch boundary.
-            "DEPARTMENT" when !string.IsNullOrEmpty(node) && !string.IsNullOrWhiteSpace(user.BranchAccess) => employees.Where(e =>
-                string.Equals(e.Department, node, StringComparison.OrdinalIgnoreCase) &&
-                string.Equals(e.Branch, user.BranchAccess, StringComparison.OrdinalIgnoreCase)).Select(e => e.EmployeeId),
+            "DEPARTMENT" when !string.IsNullOrEmpty(node) => ResolveDepartmentSeeds(node, user.BranchAccess, employees),
             "EMPLOYEE_SUBTREE" when !string.IsNullOrEmpty(node) => new[] { node },
             // RESTRICTED is the explicit revoke-all value used by the administration screen.
             "RESTRICTED" => Array.Empty<string>(),
@@ -192,6 +189,31 @@ public partial class DataAccessScopeService
         // An explicitly granted organizational boundary cannot leak into a different branch via bad hierarchy data.
         return type is "BRANCH" or "REGION" or "DEPARTMENT"
             ? seeds.ToHashSet(StringComparer.OrdinalIgnoreCase) : ScopeGraph.Descendants(employees, seeds);
+    }
+
+    private static IEnumerable<string> ResolveDepartmentSeeds(string node, string? branchAccess, List<EmployeeHistory> employees)
+    {
+        var sepIdx = node.IndexOf("::", StringComparison.Ordinal);
+        if (sepIdx > 0)
+        {
+            var depBranch = node[..sepIdx].Trim();
+            var depName = node[(sepIdx + 2)..].Trim();
+            return employees.Where(e =>
+                string.Equals(e.Branch, depBranch, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(e.Department, depName, StringComparison.OrdinalIgnoreCase))
+                .Select(e => e.EmployeeId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(branchAccess))
+        {
+            return employees.Where(e =>
+                string.Equals(e.Department, node, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(e.Branch, branchAccess.Trim(), StringComparison.OrdinalIgnoreCase))
+                .Select(e => e.EmployeeId);
+        }
+
+        return employees.Where(e => string.Equals(e.Department, node, StringComparison.OrdinalIgnoreCase))
+            .Select(e => e.EmployeeId);
     }
 
     public async Task<UserAccessScope> GetEffectiveScopeAsync(int userId, DateOnly? asOfDate = null)

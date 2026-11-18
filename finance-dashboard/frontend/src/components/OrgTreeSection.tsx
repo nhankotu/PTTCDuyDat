@@ -5,11 +5,13 @@ import { TreeNode } from '../types';
 
 interface Props extends ReportView {
   datasetId?: string;
+  asOfDate?: string;
+  refreshKey?: number;
   onViewNode: (id: string) => void;
   isAdmin?: boolean;
 }
 
-export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, viewEmployeeId, view, onViewNode }) => {
+export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, refreshKey, viewEmployeeId, view, onViewNode }) => {
   const [treeData, setTreeData] = useState<TreeNode[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -20,7 +22,7 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, viewEmploy
 
   useEffect(() => {
     loadTree();
-  }, []);
+  }, [datasetId, asOfDate, viewEmployeeId, view, refreshKey]);
 
   const loadTree = async () => {
     setLoading(true);
@@ -33,16 +35,19 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, viewEmploy
           totalSubordinatesCount: children.reduce((sum, child) => sum + child.totalSubordinatesCount + 1, 0),
           totalRevenue: 0, totalBalance: 0, children };
       };
-      const data = (await apiV1.getOrgTree(undefined, { datasetId, viewEmployeeId, view })).map(adapt);
+      const data = (await apiV1.getOrgTree(asOfDate, { datasetId, viewEmployeeId, view })).map(adapt);
       setTreeData(data);
 
-      // Auto-expand top 2 levels initially
-      const initialExpanded = new Set<string>();
-      data.forEach(root => {
-        initialExpanded.add(root.id);
-        root.children?.forEach(child => initialExpanded.add(child.id));
+      // Auto-expand top 2 levels initially if nothing expanded yet
+      setExpandedNodes(prev => {
+        if (prev.size > 0) return prev;
+        const initialExpanded = new Set<string>();
+        data.forEach(root => {
+          initialExpanded.add(root.id);
+          root.children?.forEach(child => initialExpanded.add(child.id));
+        });
+        return initialExpanded;
       });
-      setExpandedNodes(initialExpanded);
     } catch (err) {
       console.error('Lỗi khi tải cây tổ chức:', err);
     } finally {

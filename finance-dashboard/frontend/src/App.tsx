@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { ReportFilterPanel, emptyDimensions } from './components/ReportFilterPanel';
-import { SavedReportViews, SavedReportValue } from './components/SavedReportViews';
-import { ScopeSelector } from './components/ScopeSelector';
+import { X } from 'lucide-react';
+import { emptyDimensions, countActiveFilters, normalizeDimensions } from './components/ReportFilterPanel';
+import { SavedReportValue } from './components/SavedReportViews';
 import { UnifiedFilterScopePanel } from './components/UnifiedFilterScopePanel';
 import { KpiCardsV1 } from './components/KpiCardsV1';
 import { TrendAndPivotSection } from './components/TrendAndPivotSection';
@@ -109,13 +109,31 @@ export default function App() {
     return () => { active = false; };
   }, [currentUser?.username, applied.datasetId, scopeRevision]);
 
+  const resetSessionState = () => {
+    setActiveTab('kpi_v1');
+    setContractBasis('sales');
+    setKpiData(null);
+    setKpiError(null);
+    setDimensions(emptyDimensions());
+    setAppliedDimensions(emptyDimensions());
+    setReportView({ view: 'subtree' });
+    setSelectedDatasetId('');
+    setDatasets([]);
+    setBranches([]);
+    setFilterModalTab(null);
+    setHelpOpen(false);
+    setAutoAdjustedNotice(null);
+    setDateError(null);
+    hasAutoAdjustedRef.current = false;
+  };
+
   useEffect(() => {
-    const handleLogout = () => {
+    const handleLogoutEvent = () => {
       setCurrentUser(null);
-      setReportView({ view: 'subtree' });
+      resetSessionState();
     };
-    window.addEventListener('finra_auth_logout', handleLogout);
-    return () => window.removeEventListener('finra_auth_logout', handleLogout);
+    window.addEventListener('finra_auth_logout', handleLogoutEvent);
+    return () => window.removeEventListener('finra_auth_logout', handleLogoutEvent);
   }, []);
 
   const loadKpiV1 = async () => {
@@ -156,22 +174,27 @@ export default function App() {
   };
 
   const loadSavedView = (value: SavedReportValue) => {
+    const normDims = normalizeDimensions(value.dimensions);
     setFromDate(value.fromDate); setToDate(value.toDate); setAsOfDate(value.asOfDate);
     setSelectedDatasetId(value.datasetId);
-    setDimensions(value.dimensions); setAppliedDimensions(value.dimensions);
+    setDimensions(normDims); setAppliedDimensions(normDims);
     setApplied({ fromDate: value.fromDate, toDate: value.toDate, asOfDate: value.asOfDate, datasetId: value.datasetId });
     setReportView(value.reportView); setRefreshKey(n => n + 1); setDateError(null);
     setScopeRevision(n => n + 1);
   };
+  const applyDimensionsNow = (next: DimensionFilters) => {
+    const norm = normalizeDimensions(next);
+    setDimensions(norm);
+    setAppliedDimensions(norm);
+  };
   const drillDown = (groupBy: string, groupKey: string) => {
     if (groupBy === 'sale') {
       if (!scopeNodes.some(node => node.id === groupKey)) return;
-      setReportView({ viewEmployeeId: groupKey, view: 'self' });
+      changeReportView({ viewEmployeeId: groupKey, view: 'self' });
     } else {
       const field = ({ product: 'products', term: 'terms', channel: 'channels' } as const)[groupBy as 'product' | 'term' | 'channel'];
       if (!field) return;
-      const next = { ...appliedDimensions, [field]: [groupKey] };
-      setDimensions(next); setAppliedDimensions(next);
+      applyDimensionsNow({ ...appliedDimensions, [field]: [groupKey] });
     }
     setContractBasis('sales'); setActiveTab('contracts_v1');
   };
@@ -179,6 +202,7 @@ export default function App() {
   const handleLogout = async () => {
     await dashboardApi.logout();
     setCurrentUser(null);
+    resetSessionState();
   };
 
   // Date Presets Helper
@@ -220,6 +244,7 @@ export default function App() {
     setToDate(end);
     setAsOfDate(targetAsOf);
     setAutoAdjustedNotice(notice ?? null);
+    setAppliedDimensions(dimensions);
     setApplied({ fromDate: start, toDate: end, asOfDate: targetAsOf, datasetId: selectedDatasetId });
   };
 
@@ -294,6 +319,7 @@ export default function App() {
     return (
       <LoginPage
         onLoginSuccess={(session) => {
+          resetSessionState();
           setCurrentUser(session);
         }}
       />
@@ -341,7 +367,7 @@ export default function App() {
               }`}
             >
               <span>📊</span>
-              <span>6 Chỉ Số KPI</span>
+              <span>7 Chỉ Số KPI</span>
             </button>
 
             <button
@@ -357,7 +383,7 @@ export default function App() {
             </button>
 
             <button
-              onClick={() => { setContractBasis('sales'); setActiveTab('contracts_v1'); }}
+              onClick={() => setActiveTab('contracts_v1')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'contracts_v1'
                   ? 'bg-blue-600 text-white shadow-xs'
@@ -365,7 +391,7 @@ export default function App() {
               }`}
             >
               <span>📋</span>
-              <span>Tra Cứu HĐ (CSV)</span>
+              <span>Tra Cứu HĐ</span>
             </button>
 
             <button
@@ -499,7 +525,7 @@ export default function App() {
             </div>
           )}
           {(fromDate !== applied.fromDate || toDate !== applied.toDate || asOfDate !== applied.asOfDate || selectedDatasetId !== applied.datasetId) && <p role="status" className="text-sm text-amber-800">Bộ lọc có thay đổi chưa áp dụng. Bấm “Áp dụng” để cập nhật báo cáo.</p>}
-          <div className="flex flex-wrap justify-between gap-2 text-sm text-slate-600">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
             <span>
               Kỳ đã áp dụng: {applied.fromDate} → {applied.toDate} · Chốt số dư: {applied.asOfDate}
               {dateCoverage?.minDate && dateCoverage?.maxDate && (
@@ -508,8 +534,106 @@ export default function App() {
                 </span>
               )}
             </span>
-            <button onClick={() => setRefreshKey(n => n + 1)} className="text-blue-700 font-semibold shrink-0 cursor-pointer">Làm mới dữ liệu</button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button onClick={() => setFilterModalTab('all')} className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-lg font-bold cursor-pointer">
+                🎛️ Mở Bộ lọc & Phạm vi (F)
+              </button>
+              <button onClick={() => setRefreshKey(n => n + 1)} className="text-blue-700 font-semibold cursor-pointer">Làm mới dữ liệu</button>
+            </div>
           </div>
+
+          {/* Quick Smart Rules & Active Filter Chips Bar */}
+          {['kpi_v1', 'trend_v1', 'contracts_v1'].includes(activeTab) && (() => {
+            const activeNode = scopeNodes.find(n => n.id === reportView.viewEmployeeId);
+            const dimFields: Array<[ 'products' | 'terms' | 'channels' | 'statuses', string ]> = [
+              ['products', 'Sản phẩm'],
+              ['terms', 'Kỳ hạn'],
+              ['channels', 'Kênh'],
+              ['statuses', 'Trạng thái'],
+            ];
+            const stMap: Record<string, string> = { APPROVED: 'Đã duyệt', LIQUIDATED: 'Đã tất toán', PENDING: 'Chưa duyệt', ADVANCING: 'Đang ứng tiền' };
+            const totalActive = countActiveFilters(appliedDimensions) + (reportView.viewEmployeeId ? 1 : 0);
+
+            return (
+              <div className="flex flex-wrap items-center gap-2 bg-white border border-slate-200/90 rounded-xl px-3.5 py-2.5 shadow-2xs text-xs">
+                <span className="font-bold text-slate-700 mr-1">⚡ Lọc nghiệp vụ nhanh:</span>
+                <button
+                  type="button"
+                  onClick={() => applyDimensionsNow({ ...appliedDimensions, excludeTenDays: !appliedDimensions.excludeTenDays })}
+                  className={`px-2.5 py-1 rounded-lg font-semibold border transition cursor-pointer ${
+                    appliedDimensions.excludeTenDays
+                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                  title="Bật/tắt loại trừ hợp đồng có số ngày duy trì thực tế ≤ 10 ngày khỏi doanh số"
+                >
+                  {appliedDimensions.excludeTenDays ? '✓ ' : ''}Loại HĐ ≤ 10 ngày
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyDimensionsNow({ ...appliedDimensions, excludeSafeNewCust: !appliedDimensions.excludeSafeNewCust })}
+                  className={`px-2.5 py-1 rounded-lg font-semibold border transition cursor-pointer ${
+                    appliedDimensions.excludeSafeNewCust
+                      ? 'bg-purple-600 text-white border-purple-600 shadow-2xs'
+                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                  title="Bật/tắt chuẩn KH mới: HĐ ngoài Safe đầu tiên trong kỳ có giá trị ≥ 1 triệu VNĐ"
+                >
+                  {appliedDimensions.excludeSafeNewCust ? '✓ ' : ''}KH mới (Ngoài Safe ≥ 1Tr)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyDimensionsNow({ ...appliedDimensions, excludeGhost: !appliedDimensions.excludeGhost })}
+                  className={`px-2.5 py-1 rounded-lg font-semibold border transition cursor-pointer ${
+                    appliedDimensions.excludeGhost
+                      ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-2xs font-bold'
+                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                  title="Bật/tắt loại trừ các hợp đồng ma khỏi mọi chỉ số tính toán"
+                >
+                  {appliedDimensions.excludeGhost ? '✓ ' : ''}Loại trừ HĐ ma
+                </button>
+
+                {activeNode && (
+                  <button
+                    type="button"
+                    onClick={() => changeReportView({ view: 'subtree' })}
+                    className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1 font-semibold cursor-pointer"
+                  >
+                    👥 {activeNode.label} ({reportView.view === 'subtree' ? 'Cả CN' : 'Cá nhân'}) <X size={12} />
+                  </button>
+                )}
+
+                {dimFields.flatMap(([field, label]) =>
+                  appliedDimensions[field].map(opt => (
+                    <button
+                      key={`${field}:${opt}`}
+                      type="button"
+                      onClick={() => applyDimensionsNow({ ...appliedDimensions, [field]: appliedDimensions[field].filter(x => x !== opt) })}
+                      className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-blue-800 border border-blue-200 px-2.5 py-1 font-semibold cursor-pointer"
+                    >
+                      {label}: {stMap[opt] || opt} <X size={12} />
+                    </button>
+                  ))
+                )}
+
+                {totalActive > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      applyDimensionsNow(emptyDimensions());
+                      if (reportView.viewEmployeeId) changeReportView({ view: 'subtree' });
+                    }}
+                    className="ml-auto text-rose-600 hover:underline font-semibold cursor-pointer"
+                  >
+                    Đặt lại bộ lọc
+                  </button>
+                )}
+              </div>
+            );
+          })()}
         </>}
 
         {activeTab === 'kpi_v1' && (
@@ -522,7 +646,7 @@ export default function App() {
                 </div>
                 <div>
                   <h2 className="text-base font-extrabold text-slate-900 uppercase tracking-wide">
-                    Bộ 6 Chỉ Số Tài Chính Cốt Lõi
+                    Bộ 7 Chỉ Số Tài Chính Cốt Lõi
                   </h2>
                   <p className="text-xs text-slate-500 font-medium">
                     Số liệu theo phạm vi đang xem. Chọn một chỉ tiêu để tra cứu các hợp đồng liên quan.
@@ -545,29 +669,53 @@ export default function App() {
               </div>
             </div>
 
-            {/* 6 Core KPI Cards */}
-            {kpiError ? <div role="alert" className="p-4 rounded-xl bg-rose-50 text-rose-800">{kpiError} <button onClick={() => setRefreshKey(n => n + 1)} className="underline font-semibold">Thử lại</button></div> : <KpiCardsV1 kpiData={kpiData} loading={kpiLoading} onOpenDetails={basis => { setContractBasis(basis); setActiveTab('contracts_v1'); }} />}
+            {/* 7 Core KPI Cards */}
+            {kpiError ? (
+              <div role="alert" className="p-4 rounded-xl bg-rose-50 text-rose-800">
+                {kpiError} <button onClick={() => setRefreshKey(n => n + 1)} className="underline font-semibold cursor-pointer">Thử lại</button>
+              </div>
+            ) : (
+              <KpiCardsV1
+                kpiData={kpiData}
+                loading={kpiLoading}
+                excludeSafeNewCust={appliedDimensions.excludeSafeNewCust}
+                excludeTenDays={appliedDimensions.excludeTenDays}
+                onOpenDetails={basis => { setContractBasis(basis); setActiveTab('contracts_v1'); }}
+              />
+            )}
 
-            <div className="flex justify-end mb-3"><button onClick={() => setActiveTab('trend_v1')} className="text-sm font-semibold text-blue-700">Mở phân tích chi tiết →</button></div>
+            <div className="flex justify-end mb-3"><button onClick={() => setActiveTab('trend_v1')} className="text-sm font-semibold text-blue-700 cursor-pointer">Mở phân tích chi tiết →</button></div>
             {/* Embedded Trend & Pivot */}
-            <TrendAndPivotSection compact onDrillDown={drillDown} {...appliedDimensions} key={reportKey} fromDate={applied.fromDate} toDate={applied.toDate} datasetId={applied.datasetId || undefined} {...reportView} />
+            <TrendAndPivotSection compact refreshKey={refreshKey} onDrillDown={drillDown} {...appliedDimensions} fromDate={applied.fromDate} toDate={applied.toDate} datasetId={applied.datasetId || undefined} {...reportView} />
           </div>
         )}
 
         {activeTab === 'trend_v1' && (
-          <TrendAndPivotSection onDrillDown={drillDown} {...appliedDimensions} key={reportKey} fromDate={applied.fromDate} toDate={applied.toDate} datasetId={applied.datasetId || undefined} {...reportView} />
+          <TrendAndPivotSection refreshKey={refreshKey} onDrillDown={drillDown} {...appliedDimensions} fromDate={applied.fromDate} toDate={applied.toDate} datasetId={applied.datasetId || undefined} {...reportView} />
         )}
 
         {activeTab === 'contracts_v1' && (
-          <ContractsTableV1 basis={contractBasis} asOfDate={applied.asOfDate} {...appliedDimensions} key={reportKey} fromDate={applied.fromDate} toDate={applied.toDate} datasetId={applied.datasetId || undefined} {...reportView} />
+          <ContractsTableV1
+            basis={contractBasis}
+            isAdmin={isAdmin}
+            refreshKey={refreshKey}
+            onBasisChange={setContractBasis}
+            onGhostToggled={() => setRefreshKey(n => n + 1)}
+            asOfDate={applied.asOfDate}
+            {...appliedDimensions}
+            fromDate={applied.fromDate}
+            toDate={applied.toDate}
+            datasetId={applied.datasetId || undefined}
+            {...reportView}
+          />
         )}
 
         {activeTab === 'stocks_v1' && (
-          <StocksSection key={reportKey} fromDate={applied.fromDate} toDate={applied.toDate} datasetId={applied.datasetId || undefined} {...reportView} />
+          <StocksSection refreshKey={refreshKey} fromDate={applied.fromDate} toDate={applied.toDate} datasetId={applied.datasetId || undefined} {...reportView} />
         )}
 
         {activeTab === 'org_tree_v1' && (
-          <OrgTreeSection key={reportKey} isAdmin={isAdmin} datasetId={applied.datasetId || undefined} {...reportView} onViewNode={id => {
+          <OrgTreeSection refreshKey={refreshKey} asOfDate={applied.asOfDate} isAdmin={isAdmin} datasetId={applied.datasetId || undefined} {...reportView} onViewNode={id => {
             const node = scopeNodes.find(n => n.id === id);
             changeReportView({ viewEmployeeId: id, view: node?.canViewSubtree ? 'subtree' : 'self' });
             setActiveTab('kpi_v1');
@@ -586,7 +734,7 @@ export default function App() {
       {/* 3b. Floating Bottom Taskbar Dock (Phím tắt: F / T / S / Esc) */}
       {['kpi_v1', 'trend_v1', 'contracts_v1', 'stocks_v1', 'org_tree_v1'].includes(activeTab) && (() => {
         const selectedNode = scopeNodes.find(n => n.id === reportView.viewEmployeeId);
-        const dimCount = Object.values(appliedDimensions).reduce((sum, list) => sum + list.length, 0);
+        const dimCount = countActiveFilters(appliedDimensions);
         const hasPending =
           fromDate !== applied.fromDate ||
           toDate !== applied.toDate ||
@@ -862,7 +1010,7 @@ export default function App() {
                   toDate={applied.toDate}
                   showSavedViews={activeTab !== 'org_tree_v1'}
                   username={currentUser.username}
-                  savedReportValue={{ ...applied, dimensions: appliedDimensions, reportView }}
+                  savedReportValue={{ fromDate, toDate, asOfDate, datasetId: selectedDatasetId, dimensions, reportView }}
                   onLoadSavedView={loadSavedView}
                 />
               )}
@@ -962,6 +1110,15 @@ export default function App() {
                 <ul className="list-disc pl-5 space-y-1 text-blue-900">
                   <li><strong>Cây nhân sự (HR)</strong>: Nhân sự từ file Excel Nhân sự — có Chức vụ (GĐCN, TPKD, CVKD), Chi nhánh và chuyển đổi được giữa <strong>Doanh số chi nhánh / cấp dưới</strong> và <strong>Doanh số cá nhân</strong>.</li>
                   <li><strong>Sale HĐ</strong>: Sale tự động nhận diện từ hợp đồng khi chưa có trong file Nhân sự — chỉ xem <strong>Doanh số cá nhân</strong>. Khi import file Nhân sự khớp mã, hệ thống tự nâng cấp sang <strong>Cây nhân sự</strong>.</li>
+                </ul>
+              </div>
+
+              <div className="rounded-xl bg-amber-50/80 border border-amber-200 p-3.5 space-y-1.5">
+                <h3 className="font-bold text-amber-950">4. Bộ lọc nghiệp vụ thông minh & Hợp đồng ma</h3>
+                <ul className="list-disc pl-5 space-y-1 text-amber-900">
+                  <li><strong>Loại HĐ ≤ 10 ngày</strong>: Tùy chọn loại trừ các HĐ duy trì thực tế ≤ 10 ngày ra khỏi doanh số.</li>
+                  <li><strong>KH mới (Ngoài Safe ≥ 1Tr)</strong>: Tùy chọn lọc số KH có HĐ khác Safe đầu tiên trong kỳ giá trị từ 1 triệu trở lên.</li>
+                  <li><strong>Hợp đồng ma</strong>: Đánh dấu trực tiếp trên bảng HĐ hoặc nạp từ Excel (nguồn số 6 trong <em>Import Data</em>). Dòng HĐ ma được tô nền vàng trên UI và khi xuất Excel, có thể bật/tắt loại trừ linh hoạt.</li>
                 </ul>
               </div>
             </div>

@@ -7,9 +7,10 @@ interface Props extends ReportView {
   fromDate: string;
   toDate: string;
   datasetId?: string;
+  refreshKey?: number;
 }
 
-export const StocksSection: React.FC<Props> = ({ fromDate, toDate, datasetId, viewEmployeeId, view }) => {
+export const StocksSection: React.FC<Props> = ({ fromDate, toDate, datasetId, viewEmployeeId, view, refreshKey }) => {
   const [data, setData] = useState<StockReportResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -29,7 +30,7 @@ export const StocksSection: React.FC<Props> = ({ fromDate, toDate, datasetId, vi
 
   useEffect(() => {
     fetchStocks();
-  }, [fromDate, toDate, datasetId]);
+  }, [fromDate, toDate, datasetId, viewEmployeeId, view, refreshKey]);
 
   const formatCurrency = (valStr: string | null | undefined) => {
     if (valStr === null) return 'Không có quyền';

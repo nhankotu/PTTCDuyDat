@@ -4,10 +4,12 @@ import { KpiReportResponse } from '../types/v1';
 interface Props {
   kpiData: KpiReportResponse | null;
   loading: boolean;
+  excludeSafeNewCust?: boolean;
+  excludeTenDays?: boolean;
   onOpenDetails?: (basis: 'sales' | 'balance') => void;
 }
 
-export const KpiCardsV1: React.FC<Props> = ({ kpiData, loading, onOpenDetails }) => {
+export const KpiCardsV1: React.FC<Props> = ({ kpiData, loading, excludeSafeNewCust, excludeTenDays, onOpenDetails }) => {
   const formatMoney = (valStr: string | null | undefined, hasAccess: boolean): string => {
     if (!hasAccess) return 'Không có quyền';
     if (!valStr) return 'Chưa đủ dữ liệu';
@@ -53,7 +55,7 @@ export const KpiCardsV1: React.FC<Props> = ({ kpiData, loading, onOpenDetails })
     {
       id: 1,
       title: '1. Doanh số trong kỳ',
-      subtitle: 'Phát sinh theo ngày ký',
+      subtitle: excludeTenDays ? 'Phát sinh ngày ký (Đã lọc HĐ > 10 ngày)' : 'Phát sinh theo ngày ký',
       value: formatMoney(metrics?.totalSales, access.revenue),
       raw: metrics?.totalSales,
       hasAccess: access.revenue,
@@ -86,10 +88,12 @@ export const KpiCardsV1: React.FC<Props> = ({ kpiData, loading, onOpenDetails })
     },
     {
       id: 3,
-      title: '3. Số KH mới',
-      subtitle: 'Ngoài Safe ≥ 1Tr lần đầu',
-      value: formatCount(metrics?.newCustomers ?? metrics?.totalCustomers, access.revenue),
-      raw: (metrics?.newCustomers ?? metrics?.totalCustomers)?.toString(),
+      title: excludeSafeNewCust ? '3. Số KH mới (Chuẩn)' : '3. Số khách hàng',
+      subtitle: excludeSafeNewCust
+        ? `Ngoài Safe ≥ 1Tr lần đầu${metrics?.totalCustomers != null ? ` (Tổng KH kỳ: ${metrics.totalCustomers.toLocaleString('vi-VN')})` : ''}`
+        : `KH phát sinh kỳ${metrics?.newCustomers != null ? ` (KH mới chuẩn: ${metrics.newCustomers.toLocaleString('vi-VN')})` : ''}`,
+      value: formatCount(excludeSafeNewCust ? (metrics?.newCustomers ?? metrics?.totalCustomers) : metrics?.totalCustomers, access.revenue),
+      raw: (excludeSafeNewCust ? (metrics?.newCustomers ?? metrics?.totalCustomers) : metrics?.totalCustomers)?.toString(),
       hasAccess: access.revenue,
       icon: '✨',
       theme: {

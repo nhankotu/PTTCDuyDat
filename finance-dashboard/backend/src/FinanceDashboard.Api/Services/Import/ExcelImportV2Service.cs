@@ -109,8 +109,9 @@ public class ExcelImportV2Service
                 }
             }
 
-            // Check if this row is the header (R08 & R10: require colNames.Count >= 4 to skip banner titles)
-            if (colNames.Count >= 4 && colNames.Any(c => c.Contains("so phu luc") || c.Contains("ma kh") || c.Contains("chuc vu") || c.Contains("id ql1") || c.Contains("stt")))
+            // Check if this row is the header (R08 & R10: require colNames.Count >= 4 to skip banner titles, or >= 1 when importing GHOST list)
+            bool isGhostSingleCol = detectedType == "GHOST" && colNames.Count >= 1 && colNames.Any(c => c.Contains("so phu luc") || c.Contains("so hd"));
+            if (isGhostSingleCol || (colNames.Count >= 4 && colNames.Any(c => c.Contains("so phu luc") || c.Contains("ma kh") || c.Contains("chuc vu") || c.Contains("id ql1") || c.Contains("stt"))))
             {
                 headerRowIndex = r;
                 int colIdx = 0;
@@ -691,6 +692,35 @@ public class ExcelImportV2Service
                 }
                 break;
 
+            case "GHOST":
+                var ghostAppNum = GetVal("so phu luc hop dong", "so phu luc (so hd)", "so phu luc", "so hd")?.ToString()?.Trim() ?? string.Empty;
+                if (string.IsNullOrEmpty(ghostAppNum) && headerMap.Count == 1 && vals.Count > 0)
+                {
+                    ghostAppNum = vals[0]?.ToString()?.Trim() ?? string.Empty;
+                }
+                var ghostCustCode = ExcelParserHelper.FormatCustomerCode(GetVal("ma kh", "makh", "ma khach hang"));
+                var ghostCustName = GetVal("ten kh", "ten khach hang")?.ToString()?.Trim() ?? string.Empty;
+                var ghostRawProd = GetVal("ten san pham", "san pham", "ma sp", "ten sp", "san pham dau tu");
+                var ghostProd = string.IsNullOrWhiteSpace(ghostRawProd?.ToString()) ? string.Empty : ExcelParserHelper.NormalizeProductName(ghostRawProd, ghostAppNum);
+                var ghostTerm = GetVal("ky han")?.ToString()?.Trim() ?? string.Empty;
+                var ghostVal = ReadDecimal("Giá trị", "gia tri", "so tien", "gia tri hop dong");
+                var ghostSignDate = ExcelParserHelper.ParseDate(GetVal("ngay ky", "ngay gia tri", "ngay hop dong"));
+                var (ghostSaleId, ghostSaleName) = ExcelParserHelper.ParseSaleIntro(GetVal("id sale gioi thieu", "id sale", "sale gioi thieu", "sale"));
+
+                entityKey = ghostAppNum;
+                if (string.IsNullOrEmpty(ghostAppNum)) errors.Add("Thiếu Số phụ lục hợp đồng ma.");
+
+                parsedDict["appendix_number"] = ghostAppNum;
+                parsedDict["customer_code"] = ghostCustCode;
+                parsedDict["customer_name"] = ghostCustName;
+                parsedDict["product_name"] = ghostProd;
+                parsedDict["term"] = ghostTerm;
+                parsedDict["contract_value"] = ghostVal;
+                parsedDict["sign_date"] = ghostSignDate?.ToString("yyyy-MM-dd");
+                parsedDict["sale_id"] = ghostSaleId;
+                parsedDict["sale_name"] = ghostSaleName;
+                break;
+
             case "SETTLEMENT":
                 var setAppNum = GetVal("so phu luc (so hd)", "so phu luc hop dong", "so phu luc", "so hd")?.ToString()?.Trim() ?? string.Empty;
                 var setCustCode = ExcelParserHelper.FormatCustomerCode(GetVal("ma kh", "makh", "ma khach hang"));
@@ -944,6 +974,23 @@ public class ExcelImportV2Service
                             stg.Classification = "NEW";
                             stg.ResolutionAction = "ACCEPT";
                         }
+                    }
+                    break;
+
+                case "GHOST":
+                    var existingGhost = await connection.ExecuteScalarAsync<int>(@"
+                        SELECT COUNT(1) FROM excluded_contract
+                        WHERE UPPER(TRIM(appendix_number)) = UPPER(TRIM(@Key));",
+                        new { Key = stg.EntityKey });
+                    if (existingGhost > 0)
+                    {
+                        stg.Classification = "UNCHANGED";
+                        stg.ResolutionAction = "SKIP";
+                    }
+                    else
+                    {
+                        stg.Classification = "NEW";
+                        stg.ResolutionAction = "ACCEPT";
                     }
                     break;
             }
@@ -1293,6 +1340,20 @@ public class ExcelImportV2Service
                         ValidFrom = empEffDate,
                         BatchId = batch.Id
                     }, transaction);
+                break;
+
+            case "GHOST":
+                var ghostKey = GetStr("appendix_number").Trim();
+                if (!string.IsNullOrEmpty(ghostKey))
+                {
+                    await connection.ExecuteAsync(@"
+                        INSERT INTO excluded_contract (batch_id, source_batch_id, appendix_number, marked_by, marked_at)
+                        SELECT NULL, @BatchId, @AppNo, @MarkedBy, now()
+                        WHERE NOT EXISTS (
+                            SELECT 1 FROM excluded_contract WHERE UPPER(TRIM(appendix_number)) = UPPER(@AppNo)
+                        );",
+                        new { BatchId = batch.Id, AppNo = ghostKey, MarkedBy = batch.UploadedBy }, transaction);
+                }
                 break;
         }
     }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Bookmark, Trash2 } from 'lucide-react';
 import { DimensionFilters, ReportView } from '../types/v1';
+import { normalizeDimensions } from './ReportFilterPanel';
 
 export interface SavedReportValue {
   fromDate: string; toDate: string; asOfDate: string; datasetId: string;
@@ -51,7 +52,7 @@ export function SavedReportViews({ username, value, onLoad, embedded }: { userna
       </div>
       {views.length > 0 && <div className="flex flex-wrap gap-2">
         <select aria-label="Bộ lọc cá nhân đã lưu" value={selected} onChange={e => setSelected(e.target.value)} className="border border-slate-300 rounded-lg p-2 text-xs sm:text-sm max-w-full"><option value="">Chọn bộ lọc đã lưu</option>{views.map(view => <option key={view.id} value={view.id}>{view.name} · {view.value.fromDate} → {view.value.toDate}</option>)}</select>
-        <button disabled={!selected} onClick={() => { const entry = views.find(view => view.id === selected); if (entry) { onLoad(entry.value); setMessage('Đã mở bộ lọc. Dữ liệu được tải theo quyền hiện hành.'); } }} className="rounded-lg border border-slate-300 bg-white hover:bg-slate-50 px-3 py-2 text-xs sm:text-sm disabled:opacity-40 cursor-pointer">Mở bộ lọc</button>
+        <button disabled={!selected} onClick={() => { const entry = views.find(view => view.id === selected); if (entry) { onLoad({ ...entry.value, dimensions: normalizeDimensions(entry.value.dimensions) }); setMessage('Đã mở bộ lọc. Dữ liệu được tải theo quyền hiện hành.'); } }} className="rounded-lg border border-slate-300 bg-white hover:bg-slate-50 px-3 py-2 text-xs sm:text-sm disabled:opacity-40 cursor-pointer">Mở bộ lọc</button>
         <button disabled={!selected} onClick={() => { if (persist(views.filter(view => view.id !== selected))) { setSelected(''); setMessage('Đã xóa bộ lọc đã chọn.'); } }} className="inline-flex items-center gap-1 text-xs sm:text-sm text-rose-700 hover:text-rose-900 px-3 py-2 disabled:opacity-40 cursor-pointer"><Trash2 size={15} />Xóa mẫu</button>
       </div>}
       {message && <p role="status" className="text-xs sm:text-sm text-slate-600">{message}</p>}

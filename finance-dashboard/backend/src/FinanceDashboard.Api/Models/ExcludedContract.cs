@@ -11,9 +11,19 @@ public class ExcludedContract
     public long Id { get; set; }
 
     [Column("batch_id")]
-    public int BatchId { get; set; }
+    public int? BatchId { get; set; }
+
+    [Column("source_batch_id")]
+    public long? SourceBatchId { get; set; }
 
     [Column("appendix_number")]
     [MaxLength(150)]
     public string AppendixNumber { get; set; } = string.Empty;
+
+    [Column("marked_by")]
+    [MaxLength(100)]
+    public string? MarkedBy { get; set; }
+
+    [Column("marked_at")]
+    public DateTime? MarkedAt { get; set; }
 }

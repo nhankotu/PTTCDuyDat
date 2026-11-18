@@ -1,5 +1,6 @@
 using FinanceDashboard.Api.Models.Versioned;
 using FinanceDashboard.Api.Services.Authorization;
+using FinanceDashboard.Api.Services.Reporting;
 using FinanceDashboard.Api.DTOs.V1;
 
 namespace FinanceDashboard.Tests;
@@ -84,5 +85,57 @@ public class ScopeResolutionTests
         Assert.Equal(2, result.Count);
         Assert.Equal("Nguyen Van A", result.First(x => x.EmployeeId.Equals("nv01", StringComparison.OrdinalIgnoreCase)).FullName);
         Assert.Equal("Tran Thi B", result.First(x => x.EmployeeId.Equals("nv02", StringComparison.OrdinalIgnoreCase)).FullName);
+    }
+
+    [Fact]
+    public void SmartFiltersAndGhostFilterValidationWorkCorrectly()
+    {
+        // Smart boolean toggles are allowed on all report endpoints (KPI, Trend, Pivot, Contracts)
+        var smart = new ReportFilters
+        {
+            ExcludeTenDays = true,
+            ExcludeSafeNewCust = true,
+            ExcludeGhost = true
+        };
+        smart.Validate(contracts: false);
+
+        // GhostFilter != "all" is contract-list specific
+        Assert.Throws<ScopeAccessException>(() => new ReportFilters { GhostFilter = "only_ghost" }.Validate(contracts: false));
+        new ReportFilters { GhostFilter = "only_ghost" }.Validate(contracts: true);
+        Assert.Throws<ScopeAccessException>(() => new ReportFilters { GhostFilter = "invalid" }.Validate(contracts: true));
+
+        // OnlyPositiveBalance parameter reflects Basis == "balance"
+        var scope = new UserAccessScope { CanAccessAll = true };
+        var balBound = new ReportFilters { Basis = "balance" }.Bind(new { }, scope);
+        Assert.True(balBound.Get<bool>("OnlyPositiveBalance"));
+
+        var salesBound = new ReportFilters { Basis = "sales" }.Bind(new { }, scope);
+        Assert.False(salesBound.Get<bool>("OnlyPositiveBalance"));
+    }
+
+    [Fact]
+    public void CustomWeekIntervalsOutsidePeriodFallBackAndOverlappingOnesClipCleanly()
+    {
+        var novStart = new DateOnly(2026, 11, 1);
+        var novEnd = new DateOnly(2026, 11, 14);
+
+        // Stale October custom intervals stored in localStorage must NOT freeze November chart on October
+        var staleOctJson = "[{\"start\":\"2026-10-01\",\"end\":\"2026-10-07\",\"label\":\"Tuần T10\"}]";
+        var fallback = ReportingEngineV2Service.GenerateTimeIntervals(novStart, novEnd, "week", "custom", staleOctJson);
+        Assert.NotEmpty(fallback);
+        Assert.All(fallback, iv =>
+        {
+            Assert.True(iv.Start >= novStart);
+            Assert.True(iv.End <= novEnd);
+        });
+
+        // Partially overlapping custom intervals clip cleanly to [novStart, novEnd]
+        var partialJson = "[{\"start\":\"2026-10-28\",\"end\":\"2026-11-05\",\"label\":\"W1\"},{\"start\":\"2026-11-06\",\"end\":\"2026-11-20\",\"label\":\"W2\"}]";
+        var clipped = ReportingEngineV2Service.GenerateTimeIntervals(novStart, novEnd, "week", "custom", partialJson);
+        Assert.Equal(2, clipped.Count);
+        Assert.Equal(new DateOnly(2026, 11, 1), clipped[0].Start);
+        Assert.Equal(new DateOnly(2026, 11, 5), clipped[0].End);
+        Assert.Equal(new DateOnly(2026, 11, 6), clipped[1].Start);
+        Assert.Equal(new DateOnly(2026, 11, 14), clipped[1].End);
     }
 }

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Users, SlidersHorizontal, ChevronDown, ChevronUp, CornerUpLeft, Search, Filter } from 'lucide-react';
 import { ViewScopeNode, ReportView, DimensionFilters } from '../types/v1';
-import { ReportFilterPanel } from './ReportFilterPanel';
+import { ReportFilterPanel, countActiveFilters } from './ReportFilterPanel';
 import { SavedReportViews, SavedReportValue } from './SavedReportViews';
 
 interface Props {
@@ -162,7 +162,7 @@ export function UnifiedFilterScopePanel({
   const contractMatches = matches.filter(n => n.source === 'CONTRACT');
 
   const activeFilterCount = useMemo(() => {
-    return Object.values(appliedDimensions).reduce((sum, list) => sum + list.length, 0);
+    return countActiveFilters(appliedDimensions);
   }, [appliedDimensions]);
 
   const showBody = embedded || isExpanded;

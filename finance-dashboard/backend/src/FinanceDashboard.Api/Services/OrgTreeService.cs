@@ -1,8 +1,8 @@
 using Dapper;
 using FinanceDashboard.Api.Data;
 using FinanceDashboard.Api.DTOs;
-using FinanceDashboard.Api.Models;
-using Microsoft.EntityFrameworkCore;
+using FinanceDashboard.Api.Models.Versioned;
+using FinanceDashboard.Api.Services.Authorization;
 
 namespace FinanceDashboard.Api.Services;
 
@@ -15,39 +15,36 @@ public interface IOrgTreeService
 
 public class OrgTreeService : IOrgTreeService
 {
-    private readonly FinanceDbContext _dbContext;
-    private readonly IDbConnectionFactory _dbFactory;
+    private readonly DataAccessScopeService _scopeService;
 
-    public OrgTreeService(FinanceDbContext dbContext, IDbConnectionFactory dbFactory)
+    public OrgTreeService(DataAccessScopeService scopeService)
     {
-        _dbContext = dbContext;
-        _dbFactory = dbFactory;
+        _scopeService = scopeService;
     }
 
     public async Task<List<TreeNodeDto>> GetOrgTreeAsync()
     {
-        var employees = await _dbContext.Employees
-            .AsNoTracking()
+        var employees = (await _scopeService.GetScopeEmployeesAsync())
             .OrderBy(e => e.Position)
             .ThenBy(e => e.FullName)
-            .ToListAsync();
+            .ToList();
 
         if (employees.Count == 0)
         {
             return new List<TreeNodeDto>();
         }
 
-        var empMap = employees.ToDictionary(e => e.Id, StringComparer.OrdinalIgnoreCase);
-        var childrenMap = new Dictionary<string, List<Employee>>(StringComparer.OrdinalIgnoreCase);
+        var empMap = employees.ToDictionary(e => e.EmployeeId, StringComparer.OrdinalIgnoreCase);
+        var childrenMap = new Dictionary<string, List<EmployeeHistory>>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var emp in employees)
         {
-            var mgrId = emp.ManagerId?.Trim();
+            var mgrId = emp.ManagerEmployeeId?.Trim();
             if (!string.IsNullOrWhiteSpace(mgrId) && empMap.ContainsKey(mgrId))
             {
                 if (!childrenMap.ContainsKey(mgrId))
                 {
-                    childrenMap[mgrId] = new List<Employee>();
+                    childrenMap[mgrId] = new List<EmployeeHistory>();
                 }
                 childrenMap[mgrId].Add(emp);
             }
@@ -55,8 +52,8 @@ public class OrgTreeService : IOrgTreeService
 
         // Roots are employees without manager or manager not in list
         var roots = employees.Where(e =>
-            string.IsNullOrWhiteSpace(e.ManagerId) ||
-            !empMap.ContainsKey(e.ManagerId.Trim())
+            string.IsNullOrWhiteSpace(e.ManagerEmployeeId) ||
+            !empMap.ContainsKey(e.ManagerEmployeeId.Trim())
         ).ToList();
 
         // If no root found (e.g. cycle), pick PTM or GĐCN as roots
@@ -78,43 +75,41 @@ public class OrgTreeService : IOrgTreeService
         return result;
     }
 
-    private TreeNodeDto BuildTreeNode(Employee emp, Dictionary<string, List<Employee>> childrenMap, HashSet<string>? path = null)
+    private TreeNodeDto BuildTreeNode(EmployeeHistory emp, Dictionary<string, List<EmployeeHistory>> childrenMap, HashSet<string>? path = null)
     {
         path ??= new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        path.Add(emp.Id);
+        path.Add(emp.EmployeeId);
+        var isContractDerived = string.Equals(emp.SourceLevel, "CONTRACT", StringComparison.OrdinalIgnoreCase);
         var node = new TreeNodeDto
         {
-            Id = emp.Id,
+            Id = emp.EmployeeId,
             Label = emp.FullName,
-            Position = emp.Position ?? "CVKD",
-            Department = emp.DepartmentName,
-            Branch = emp.BranchName,
-            Region = emp.RegionName,
-            Status = emp.Status ?? (emp.IsActive ? "Đang hoạt động" : "Không hoạt động"),
+            Position = isContractDerived ? "Sale HĐ" : (emp.Position ?? "CVKD"),
+            Department = emp.Department,
+            Branch = emp.Branch,
+            Region = emp.Region,
+            Status = emp.EmploymentStatus ?? "Đang hoạt động",
             Children = new List<TreeNodeDto>()
         };
 
-        if (childrenMap.TryGetValue(emp.Id, out var children))
+        if (childrenMap.TryGetValue(emp.EmployeeId, out var children))
         {
             foreach (var child in children)
             {
-                if (path.Contains(child.Id)) continue;
+                if (path.Contains(child.EmployeeId)) continue;
                 node.Children.Add(BuildTreeNode(child, childrenMap, path));
             }
             node.DirectSubordinatesCount = node.Children.Count;
             node.TotalSubordinatesCount = node.Children.Sum(child => 1 + child.TotalSubordinatesCount);
         }
-        path.Remove(emp.Id);
+        path.Remove(emp.EmployeeId);
 
         return node;
     }
 
     public async Task<List<TreeFlatNodeDto>> GetFlatNodesAsync()
     {
-        var employees = await _dbContext.Employees
-            .AsNoTracking()
-            .ToListAsync();
-
+        var employees = await _scopeService.GetScopeEmployeesAsync();
         var list = new List<TreeFlatNodeDto>();
 
         // 1. Root option: Toàn hệ thống
@@ -129,14 +124,14 @@ public class OrgTreeService : IOrgTreeService
 
         // 2. Cấp Miền
         var regions = employees
-            .Where(e => !string.IsNullOrWhiteSpace(e.RegionName))
-            .Select(e => e.RegionName!)
-            .Distinct()
+            .Where(e => !string.IsNullOrWhiteSpace(e.Region))
+            .Select(e => e.Region!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(r => r);
 
         foreach (var reg in regions)
         {
-            var count = employees.Count(e => e.RegionName == reg);
+            var count = employees.Count(e => string.Equals(e.Region?.Trim(), reg, StringComparison.OrdinalIgnoreCase));
             list.Add(new TreeFlatNodeDto
             {
                 Id = reg,
@@ -150,8 +145,8 @@ public class OrgTreeService : IOrgTreeService
 
         // 3. Cấp Chi nhánh
         var branches = employees
-            .Where(e => !string.IsNullOrWhiteSpace(e.BranchName))
-            .GroupBy(e => e.BranchName!)
+            .Where(e => !string.IsNullOrWhiteSpace(e.Branch))
+            .GroupBy(e => e.Branch!.Trim(), StringComparer.OrdinalIgnoreCase)
             .OrderBy(g => g.Key);
 
         foreach (var b in branches)
@@ -163,45 +158,53 @@ public class OrgTreeService : IOrgTreeService
                 Label = $"🏛️ {b.Key} (Toàn bộ các Phòng & Sale thuộc {b.Key})",
                 Position = "Giám đốc Chi nhánh (GĐCN)",
                 Branch = b.Key,
-                Region = firstEmp.RegionName,
+                Region = firstEmp.Region,
                 ScopeType = "BRANCH",
                 SubordinatesCount = b.Count()
             });
         }
 
-        // 4. Cấp Phòng ban
+        // 4. Cấp Phòng ban (gắn với Chi nhánh để tránh trùng tên phòng giữa các chi nhánh)
         var depts = employees
-            .Where(e => !string.IsNullOrWhiteSpace(e.DepartmentName))
-            .GroupBy(e => e.DepartmentName!)
-            .OrderBy(g => g.Key);
+            .Where(e => !string.IsNullOrWhiteSpace(e.Department))
+            .GroupBy(e => new
+            {
+                Branch = (e.Branch ?? "").Trim(),
+                Dept = e.Department!.Trim()
+            })
+            .OrderBy(g => g.Key.Branch)
+            .ThenBy(g => g.Key.Dept);
 
         foreach (var d in depts)
         {
             var firstEmp = d.First();
+            var id = !string.IsNullOrEmpty(d.Key.Branch) ? $"{d.Key.Branch}::{d.Key.Dept}" : d.Key.Dept;
+            var branchSuffix = !string.IsNullOrEmpty(d.Key.Branch) ? $" - {d.Key.Branch}" : "";
             list.Add(new TreeFlatNodeDto
             {
-                Id = d.Key,
-                Label = $"📑 {d.Key} ({d.Key} - {firstEmp.BranchName})",
+                Id = id,
+                Label = $"📑 {d.Key.Dept}{branchSuffix}",
                 Position = "Trưởng phòng KD (TPKD)",
-                Branch = firstEmp.BranchName,
-                Region = firstEmp.RegionName,
-                Department = d.Key,
+                Branch = firstEmp.Branch,
+                Region = firstEmp.Region,
+                Department = d.Key.Dept,
                 ScopeType = "DEPARTMENT",
                 SubordinatesCount = d.Count()
             });
         }
 
-        // 5. Cấp Nhân sự cụ thể (Chuyên viên / Trưởng phòng + Cây con bên dưới)
+        // 5. Cấp Nhân sự cụ thể (Chuyên viên / Trưởng phòng + Cây con bên dưới + Sale HĐ)
         var tree = await GetOrgTreeAsync();
         var empNodes = new List<TreeNodeDto>();
         FlattenTree(tree, empNodes);
 
         foreach (var empNode in empNodes.OrderByDescending(e => e.TotalSubordinatesCount).ThenBy(e => e.Label))
         {
+            var unit = empNode.Branch ?? empNode.Department ?? empNode.Id;
             list.Add(new TreeFlatNodeDto
             {
                 Id = empNode.Id,
-                Label = $"👤 {empNode.Label} [{empNode.Position}] - {empNode.Branch ?? empNode.Department} ({empNode.TotalSubordinatesCount} cấp dưới)",
+                Label = $"👤 {empNode.Label} [{empNode.Position}] - {unit} ({empNode.TotalSubordinatesCount} cấp dưới)",
                 Position = empNode.Position,
                 Branch = empNode.Branch,
                 Region = empNode.Region,
@@ -233,44 +236,44 @@ public class OrgTreeService : IOrgTreeService
             return new List<string>(); // Empty means unrestricted
         }
 
-        using var conn = _dbFactory.CreateConnection();
+        var employees = await _scopeService.GetScopeEmployeesAsync();
+        var node = scopeNodeId.Trim();
 
         if (scopeType == "REGION")
         {
-            var ids = await conn.QueryAsync<string>(
-                "SELECT id FROM employee WHERE region_name = @scopeNodeId;",
-                new { scopeNodeId });
-            return ids.ToList();
+            return employees
+                .Where(e => string.Equals(e.Region?.Trim(), node, StringComparison.OrdinalIgnoreCase))
+                .Select(e => e.EmployeeId)
+                .ToList();
         }
 
         if (scopeType == "BRANCH")
         {
-            var ids = await conn.QueryAsync<string>(
-                "SELECT id FROM employee WHERE branch_name = @scopeNodeId;",
-                new { scopeNodeId });
-            return ids.ToList();
+            return employees
+                .Where(e => string.Equals(e.Branch?.Trim(), node, StringComparison.OrdinalIgnoreCase))
+                .Select(e => e.EmployeeId)
+                .ToList();
         }
 
         if (scopeType == "DEPARTMENT")
         {
-            var ids = await conn.QueryAsync<string>(
-                "SELECT id FROM employee WHERE department_name = @scopeNodeId;",
-                new { scopeNodeId });
-            return ids.ToList();
+            var sepIdx = node.IndexOf("::", StringComparison.Ordinal);
+            if (sepIdx > 0)
+            {
+                var br = node[..sepIdx].Trim();
+                var dep = node[(sepIdx + 2)..].Trim();
+                return employees
+                    .Where(e => string.Equals(e.Branch?.Trim(), br, StringComparison.OrdinalIgnoreCase) &&
+                                string.Equals(e.Department?.Trim(), dep, StringComparison.OrdinalIgnoreCase))
+                    .Select(e => e.EmployeeId)
+                    .ToList();
+            }
+            return employees
+                .Where(e => string.Equals(e.Department?.Trim(), node, StringComparison.OrdinalIgnoreCase))
+                .Select(e => e.EmployeeId)
+                .ToList();
         }
 
-        // EMPLOYEE_SUBTREE: Recursive CTE
-        var sql = @"
-            WITH RECURSIVE sub_tree AS (
-                SELECT id FROM employee WHERE id = @scopeNodeId
-                UNION
-                SELECT e.id FROM employee e
-                INNER JOIN sub_tree st ON e.manager_id = st.id
-            )
-            SELECT DISTINCT id FROM sub_tree;
-        ";
-
-        var subtreeIds = await conn.QueryAsync<string>(sql, new { scopeNodeId });
-        return subtreeIds.ToList();
+        return ScopeGraph.Descendants(employees, new[] { node }).ToList();
     }
 }

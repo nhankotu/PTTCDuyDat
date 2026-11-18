@@ -211,6 +211,7 @@ export interface ContractFilters {
   minBalance?: string;
   maxBalance?: string;
   changedSale?: boolean;
+  ghostFilter?: 'all' | 'only_ghost' | 'non_ghost';
   sort?: string;
 }
 

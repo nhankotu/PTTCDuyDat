@@ -8,13 +8,50 @@ interface Props extends ReportView, DimensionFilters {
   fromDate: string;
   toDate: string;
   datasetId?: string;
+  refreshKey?: number;
   compact?: boolean;
   onDrillDown?: (groupBy: string, groupKey: string) => void;
 }
 
-export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datasetId, viewEmployeeId, view, products, terms, channels, statuses, compact, onDrillDown }) => {
+function calcBalanceMin(value: { min: number; max: number }): number {
+  if (!Number.isFinite(value.min) || !Number.isFinite(value.max) || value.max <= 0) return 0;
+  const span = value.max - value.min;
+  const pad = span > 0 ? span * 0.2 : Math.max(value.max * 0.02, 1_000_000);
+  return Math.max(0, Math.floor(value.min - pad));
+}
+
+function calcBalanceMax(value: { min: number; max: number }): number {
+  if (!Number.isFinite(value.min) || !Number.isFinite(value.max) || value.max <= 0) return 10_000_000;
+  const span = value.max - value.min;
+  const pad = span > 0 ? span * 0.2 : Math.max(value.max * 0.02, 1_000_000);
+  return Math.ceil(value.max + pad);
+}
+
+export const TrendAndPivotSection: React.FC<Props> = ({
+  fromDate,
+  toDate,
+  datasetId,
+  refreshKey,
+  viewEmployeeId,
+  view,
+  products,
+  terms,
+  channels,
+  statuses,
+  excludeTenDays,
+  excludeSafeNewCust,
+  excludeGhost,
+  compact,
+  onDrillDown,
+}) => {
   const [period, setPeriod] = useState<'day' | 'week' | 'month' | 'quarter'>('week');
-  const [chartViewMode, setChartViewMode] = useState<'combined' | 'split'>('split');
+  const [chartViewMode, setChartViewMode] = useState<'combined' | 'split'>(() => {
+    try {
+      const saved = localStorage.getItem('finra_chart_view_mode');
+      if (saved === 'combined' || saved === 'split') return saved;
+    } catch {}
+    return 'split';
+  });
   const [weekMode, setWeekMode] = useState<'standard' | 'business4week' | 'custom'>(() => {
     return (localStorage.getItem('finra_week_mode') as any) || 'standard';
   });
@@ -31,7 +68,8 @@ export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datase
   const [tempIntervals, setTempIntervals] = useState<Array<{ start: string; end: string; label: string }>>([]);
 
   const openWeekModal = () => {
-    setTempIntervals([...customIntervals]);
+    const hasOverlap = customIntervals.some(iv => iv.end >= fromDate && iv.start <= toDate);
+    setTempIntervals(hasOverlap ? [...customIntervals] : [{ start: fromDate, end: toDate, label: 'Tuần 1' }]);
     setIsWeekModalOpen(true);
   };
 
@@ -42,9 +80,13 @@ export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datase
   const [revision, setRevision] = useState(0);
   const [loading, setLoading] = useState<boolean>(true);
 
+  useEffect(() => {
+    try { localStorage.setItem('finra_chart_view_mode', chartViewMode); } catch {}
+  }, [chartViewMode]);
+
   // Save week mode
   useEffect(() => {
-    localStorage.setItem('finra_week_mode', weekMode);
+    try { localStorage.setItem('finra_week_mode', weekMode); } catch {}
   }, [weekMode]);
 
   // Save custom intervals
@@ -55,27 +97,40 @@ export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datase
       return;
     }
     setError(null);
-    setCustomIntervals(newIntervals);
-    localStorage.setItem('finra_custom_week_intervals', JSON.stringify(newIntervals));
+    setCustomIntervals(sorted);
+    try { localStorage.setItem('finra_custom_week_intervals', JSON.stringify(sorted)); } catch {}
     setIsWeekModalOpen(false);
   };
+
+  const dimsKey = JSON.stringify([products, terms, channels, statuses, !!excludeTenDays, !!excludeSafeNewCust, !!excludeGhost]);
 
   useEffect(() => {
     let active = true;
     const fetchData = async () => {
-      setLoading(true); setError(null); setTrendData([]); setPivotData([]);
+      setLoading(true); setError(null);
       try {
+        const sharedParams = {
+          fromDate,
+          toDate,
+          datasetId,
+          viewEmployeeId,
+          view,
+          products,
+          terms,
+          channels,
+          statuses,
+          excludeTenDays,
+          excludeSafeNewCust,
+          excludeGhost,
+        };
         const [trendRes, pivotRes] = await Promise.all([
           apiV1.getTrend({
-            fromDate,
-            toDate,
+            ...sharedParams,
             period,
-            datasetId,
-        viewEmployeeId, view, products, terms, channels, statuses,
             weekMode: period === 'week' ? weekMode : undefined,
             customIntervalsJson: period === 'week' && weekMode === 'custom' ? JSON.stringify(customIntervals) : undefined,
           }),
-          apiV1.getPivot({ fromDate, toDate, groupBy, datasetId, viewEmployeeId, view, products, terms, channels, statuses }),
+          apiV1.getPivot({ ...sharedParams, groupBy }),
         ]);
         if (!active) return;
         setTrendData(trendRes);
@@ -89,7 +144,19 @@ export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datase
 
     fetchData();
     return () => { active = false; };
-  }, [fromDate, toDate, period, groupBy, datasetId, weekMode, customIntervals, viewEmployeeId, view, products, terms, channels, statuses, revision]);
+  }, [fromDate, toDate, period, groupBy, datasetId, weekMode, customIntervals, viewEmployeeId, view, dimsKey, revision, refreshKey]);
+
+  const numericBalances = trendData
+    .map(t => (t.totalBalance === null ? NaN : parseFloat(t.totalBalance)))
+    .filter(n => Number.isFinite(n));
+  const balSpan = numericBalances.length > 1 ? Math.max(...numericBalances) - Math.min(...numericBalances) : 0;
+  const formatBalanceAxisLabel = (v: number) => {
+    if (v >= 1e9) {
+      const decimals = balSpan > 0 && balSpan < 2e9 ? 2 : 1;
+      return `${(v / 1e9).toFixed(decimals)} Tỷ`;
+    }
+    return `${(v / 1e6).toFixed(0)} Tr`;
+  };
 
   // ECharts Trend Option with modern aesthetics
   const trendOption = {
@@ -157,18 +224,12 @@ export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datase
         axisLine: { show: false },
         splitLine: { show: false },
         scale: true,
-        min: (value: { min: number }) => {
-          const pad = Math.max((value.min) * 0.05, 1);
-          return Math.floor(value.min - pad);
-        },
-        max: (value: { max: number }) => {
-          const pad = Math.max((value.max) * 0.05, 1);
-          return Math.ceil(value.max + pad);
-        },
+        min: calcBalanceMin,
+        max: calcBalanceMax,
         axisLabel: {
           color: '#64748b',
           fontSize: 11,
-          formatter: (value: number) => (value >= 1e9 ? `${(value / 1e9).toFixed(1)} Tỷ` : `${(value / 1e6).toFixed(0)} Tr`),
+          formatter: formatBalanceAxisLabel,
         },
       },
     ],
@@ -294,20 +355,14 @@ export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datase
       type: 'value',
       name: 'Số dư cuối mốc',
       scale: true,
-      min: (value: { min: number }) => {
-        const pad = Math.max(value.min * 0.05, 1);
-        return Math.floor(value.min - pad);
-      },
-      max: (value: { max: number }) => {
-        const pad = Math.max(value.max * 0.05, 1);
-        return Math.ceil(value.max + pad);
-      },
+      min: calcBalanceMin,
+      max: calcBalanceMax,
       nameTextStyle: { color: '#64748b', fontSize: 11 },
       splitLine: { lineStyle: { color: '#f1f5f9', type: 'dashed' } },
       axisLabel: {
         color: '#64748b',
         fontSize: 11,
-        formatter: (v: number) => (v >= 1e9 ? `${(v / 1e9).toFixed(1)} Tỷ` : `${(v / 1e6).toFixed(0)} Tr`),
+        formatter: formatBalanceAxisLabel,
       },
     },
     series: [

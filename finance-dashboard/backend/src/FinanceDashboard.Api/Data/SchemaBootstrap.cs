@@ -36,6 +36,22 @@ public static class SchemaBootstrap
         SET password_hash = '$2a$11$5i3IrMPdu15AK.CypuDGVuVmO5oEjTCW.7TJLDCrnTwl978ifJ8we'
         WHERE username = 'admin'
           AND password_hash = '$2a$11$q9hI6hZ7WpA2R7iT4TfNq.OvhH6V9m3L.s2kHkG7R/d0eK9i3lH8C';
+
+        -- Allow ghost contracts marked via UI or V2 import without legacy import_batch FK
+        ALTER TABLE excluded_contract ALTER COLUMN batch_id DROP NOT NULL;
+        ALTER TABLE excluded_contract DROP CONSTRAINT IF EXISTS excluded_contract_batch_id_fkey;
+        ALTER TABLE excluded_contract ADD COLUMN IF NOT EXISTS source_batch_id BIGINT;
+        ALTER TABLE excluded_contract ADD COLUMN IF NOT EXISTS marked_by VARCHAR(100);
+        ALTER TABLE excluded_contract ADD COLUMN IF NOT EXISTS marked_at TIMESTAMPTZ DEFAULT now();
+
+        -- Deduplicate excluded_contract on normalized appendix_number before creating unique index
+        DELETE FROM excluded_contract a
+        USING excluded_contract b
+        WHERE a.id < b.id
+          AND UPPER(TRIM(a.appendix_number)) = UPPER(TRIM(b.appendix_number));
+
+        CREATE UNIQUE INDEX IF NOT EXISTS ux_excluded_contract_app_upper
+            ON excluded_contract (UPPER(TRIM(appendix_number)));
     ";
 
     public static async Task EnsureSyncedAsync(IServiceProvider services)
