@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ReactECharts from 'echarts-for-react';
+import { Download } from 'lucide-react';
 import { ReportView, DimensionFilters } from '../types/v1';
 import { apiV1 } from '../services/apiV1';
 import { TrendPoint, PivotItem } from '../types/v1';
@@ -8,11 +9,13 @@ interface Props extends ReportView, DimensionFilters {
   fromDate: string;
   toDate: string;
   datasetId?: string;
+  refreshKey?: number;
   compact?: boolean;
   onDrillDown?: (groupBy: string, groupKey: string) => void;
 }
 
-export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datasetId, viewEmployeeId, view, products, terms, channels, statuses, compact, onDrillDown }) => {
+export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datasetId, refreshKey, viewEmployeeId, view, products, terms, channels, statuses, compact, onDrillDown }) => {
+  const [donutMetric, setDonutMetric] = useState<'sales' | 'balance'>('sales');
   const [period, setPeriod] = useState<'day' | 'week' | 'month' | 'quarter'>('week');
   const [weekMode, setWeekMode] = useState<'standard' | 'business4week' | 'custom'>(() => {
     return (localStorage.getItem('finra_week_mode') as any) || 'standard';
@@ -88,7 +91,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datase
 
     fetchData();
     return () => { active = false; };
-  }, [fromDate, toDate, period, groupBy, datasetId, weekMode, customIntervals, viewEmployeeId, view, products, terms, channels, statuses, revision]);
+  }, [fromDate, toDate, period, groupBy, datasetId, weekMode, customIntervals, viewEmployeeId, view, products, terms, channels, statuses, revision, refreshKey]);
 
   // ECharts Trend Option with modern aesthetics
   const trendOption = {
@@ -223,7 +226,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datase
     },
     series: [
       {
-        name: 'Tỷ trọng Doanh số',
+        name: donutMetric === 'sales' ? 'Tỷ trọng Doanh số' : 'Tỷ trọng Số dư',
         type: 'pie',
         radius: ['45%', '72%'],
         center: ['50%', '45%'],
@@ -245,10 +248,12 @@ export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datase
             formatter: '{b}\n{d}%',
           },
         },
-        data: pivotData.filter(p => p.totalSales !== null).map((p) => ({
-          name: p.groupName || 'Chưa xác định',
-          value: parseFloat(p.totalSales || '0'),
-        })),
+        data: pivotData
+          .filter((p) => (donutMetric === 'sales' ? p.totalSales !== null : p.totalBalance !== null))
+          .map((p) => ({
+            name: p.groupName || 'Chưa xác định',
+            value: parseFloat((donutMetric === 'sales' ? p.totalSales : p.totalBalance) || '0'),
+          })),
       },
     ],
   };
@@ -262,6 +267,31 @@ export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datase
       currency: 'VND',
       maximumFractionDigits: 0,
     }).format(num);
+  };
+
+  const handleExportPivotCsv = () => {
+    if (!pivotData.length) return;
+    const headers = ['Phân Nhóm', 'Doanh Số (VND)', 'Tỷ Trọng DS (%)', 'Số Dư Tại T (VND)', 'Tỷ Trọng Dư (%)', 'Số HĐ', 'Số KH'];
+    const escape = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows = pivotData.map((p) => [
+      p.groupName || 'Chưa xác định',
+      p.totalSales ?? '',
+      p.salesSharePercent !== null ? p.salesSharePercent.toFixed(2) : '',
+      p.totalBalance ?? '',
+      p.balanceSharePercent !== null ? p.balanceSharePercent.toFixed(2) : '',
+      p.contractCount ?? '',
+      p.customerCount ?? '',
+    ].map(escape).join(','));
+    const csv = '\uFEFF' + [headers.map(escape).join(','), ...rows].join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `co_cau_${groupBy}_${fromDate}_${toDate}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -359,7 +389,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datase
               </p>
             </div>
 
-            <div className="flex items-center space-x-2 self-start sm:self-auto">
+            <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
               <span className="text-xs font-semibold text-slate-600">Phân loại:</span>
               <select
                 value={groupBy}
@@ -372,6 +402,15 @@ export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datase
                 <option value="branch">Chi nhánh kinh doanh</option>
                 <option value="sale">Mã nhân viên Sale</option>
               </select>
+              <button
+                type="button"
+                disabled={loading || pivotData.length === 0}
+                onClick={handleExportPivotCsv}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold disabled:opacity-40 cursor-pointer transition"
+              >
+                <Download size={13} />
+                <span>Xuất CSV</span>
+              </button>
             </div>
           </div>
 
@@ -465,14 +504,32 @@ export const TrendAndPivotSection: React.FC<Props> = ({ fromDate, toDate, datase
 
         {/* Share Donut Chart */}
         <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-6 flex flex-col justify-between">
-          <div>
-            <h3 className="font-bold text-slate-900 text-sm flex items-center space-x-2">
-              <span className="p-1 rounded-md bg-indigo-50 text-indigo-600">🍩</span>
-              <span>Cơ Cấu Tỷ Trọng Doanh Số</span>
-            </h3>
-            <p className="text-xs text-slate-500 mt-1 font-medium">
-              Tỷ trọng phần trăm đóng góp theo từng nhóm.
-            </p>
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm flex items-center space-x-2">
+                <span className="p-1 rounded-md bg-indigo-50 text-indigo-600">🍩</span>
+                <span>Cơ Cấu Tỷ Trọng {donutMetric === 'sales' ? 'Doanh Số' : 'Số Dư'}</span>
+              </h3>
+              <p className="text-xs text-slate-500 mt-1 font-medium">
+                Tỷ trọng phần trăm đóng góp theo từng nhóm.
+              </p>
+            </div>
+            <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200 text-[11px] font-bold shrink-0">
+              <button
+                type="button"
+                onClick={() => setDonutMetric('sales')}
+                className={`px-2 py-1 rounded-md cursor-pointer transition ${donutMetric === 'sales' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600'}`}
+              >
+                Doanh số
+              </button>
+              <button
+                type="button"
+                onClick={() => setDonutMetric('balance')}
+                className={`px-2 py-1 rounded-md cursor-pointer transition ${donutMetric === 'balance' ? 'bg-white text-emerald-700 shadow-2xs' : 'text-slate-600'}`}
+              >
+                Số dư
+              </button>
+            </div>
           </div>
 
           <div className="my-auto py-2">

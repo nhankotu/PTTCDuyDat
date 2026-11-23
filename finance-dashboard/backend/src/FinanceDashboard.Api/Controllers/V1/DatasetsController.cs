@@ -36,6 +36,27 @@ public class DatasetsV1Controller : ControllerBase
         return Ok(datasets);
     }
 
+    [HttpGet("confirmed-batches")]
+    public async Task<ActionResult<List<SourceBatch>>> GetConfirmedBatches()
+    {
+        var role = User.FindFirstValue(ClaimTypes.Role);
+        if (role != "admin")
+        {
+            return Forbid();
+        }
+
+        using var connection = _db.CreateNpgsqlConnection();
+        await connection.OpenAsync();
+
+        var batches = (await connection.QueryAsync<SourceBatch>(@"
+            SELECT * FROM source_batch
+            WHERE status = 'CONFIRMED'
+            ORDER BY confirmed_at DESC NULLS LAST, id DESC
+            LIMIT 100;")).ToList();
+
+        return Ok(batches);
+    }
+
     [HttpPost]
     public async Task<IActionResult> PublishDataset([FromBody] CreateDatasetRequest req)
     {

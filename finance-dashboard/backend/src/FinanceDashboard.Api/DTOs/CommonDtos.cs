@@ -84,6 +84,7 @@ public class UserDto
     public string? ScopeNodeId { get; set; }
     public string? ScopeNodeName { get; set; }
     public string? ScopeNodeRole { get; set; }
+    public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; }
 }
 

@@ -19,8 +19,6 @@
     "vite": "^8.3.6"
   },
   "dependencies": {
-    "ag-grid-community": "^36.3.0",
-    "ag-grid-react": "^36.3.0",
     "axios": "^1.21.0",
     "echarts": "^6.1.0",
     "echarts-for-react": "^3.0.6",

@@ -78,6 +78,7 @@ export interface UserAccount {
   scopeNodeId?: string;
   scopeNodeName?: string;
   scopeNodeRole?: string;
+  isActive?: boolean;
   createdAt: string;
 }
 

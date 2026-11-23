@@ -1,13 +1,16 @@
 import React from 'react';
+import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { KpiReportResponse } from '../types/v1';
 
 interface Props {
   kpiData: KpiReportResponse | null;
+  previousKpiData?: KpiReportResponse | null;
+  comparisonLabel?: string;
   loading: boolean;
   onOpenDetails?: (basis: 'sales' | 'balance') => void;
 }
 
-export const KpiCardsV1: React.FC<Props> = ({ kpiData, loading, onOpenDetails }) => {
+export const KpiCardsV1: React.FC<Props> = ({ kpiData, previousKpiData, comparisonLabel, loading, onOpenDetails }) => {
   const formatMoney = (valStr: string | null | undefined, hasAccess: boolean): string => {
     if (!hasAccess) return 'Không có quyền';
     if (!valStr) return 'Chưa đủ dữ liệu';
@@ -24,6 +27,26 @@ export const KpiCardsV1: React.FC<Props> = ({ kpiData, loading, onOpenDetails })
     if (!hasAccess) return 'Không có quyền';
     if (count === null || count === undefined) return 'Chưa đủ dữ liệu';
     return count.toLocaleString('vi-VN');
+  };
+
+  const computeDelta = (
+    currRaw: string | number | null | undefined,
+    prevRaw: string | number | null | undefined,
+    hasAccess: boolean
+  ): { pct: number | null; prevFormatted: string | null } => {
+    if (!hasAccess || currRaw === null || currRaw === undefined || prevRaw === null || prevRaw === undefined) {
+      return { pct: null, prevFormatted: null };
+    }
+    const curr = typeof currRaw === 'number' ? currRaw : parseFloat(currRaw);
+    const prev = typeof prevRaw === 'number' ? prevRaw : parseFloat(prevRaw);
+    if (isNaN(curr) || isNaN(prev)) return { pct: null, prevFormatted: null };
+    if (prev === 0) {
+      return { pct: curr === 0 ? 0 : null, prevFormatted: '0' };
+    }
+    return {
+      pct: ((curr - prev) / Math.abs(prev)) * 100,
+      prevFormatted: prev.toLocaleString('vi-VN', { maximumFractionDigits: 0 }),
+    };
   };
 
   if (loading) {
@@ -47,6 +70,7 @@ export const KpiCardsV1: React.FC<Props> = ({ kpiData, loading, onOpenDetails })
   }
 
   const metrics = kpiData?.metrics;
+  const prevMetrics = previousKpiData?.metrics;
   const access = kpiData?.access ?? { revenue: true, balance: true, scopesDiffer: false };
 
   const cards = [
@@ -56,6 +80,7 @@ export const KpiCardsV1: React.FC<Props> = ({ kpiData, loading, onOpenDetails })
       subtitle: 'Phát sinh theo ngày ký',
       value: formatMoney(metrics?.totalSales, access.revenue),
       raw: metrics?.totalSales,
+      delta: computeDelta(metrics?.totalSales, prevMetrics?.totalSales, access.revenue),
       hasAccess: access.revenue,
       icon: '💰',
       theme: {
@@ -73,6 +98,7 @@ export const KpiCardsV1: React.FC<Props> = ({ kpiData, loading, onOpenDetails })
       subtitle: 'Gốc − Đã tất toán tại T',
       value: formatMoney(metrics?.totalBalance, access.balance),
       raw: metrics?.totalBalance,
+      delta: computeDelta(metrics?.totalBalance, prevMetrics?.totalBalance, access.balance),
       hasAccess: access.balance,
       icon: '🏦',
       theme: {
@@ -90,6 +116,7 @@ export const KpiCardsV1: React.FC<Props> = ({ kpiData, loading, onOpenDetails })
       subtitle: 'Khách hàng phát sinh kỳ',
       value: formatCount(metrics?.totalCustomers, access.revenue),
       raw: metrics?.totalCustomers?.toString(),
+      delta: computeDelta(metrics?.totalCustomers, prevMetrics?.totalCustomers, access.revenue),
       hasAccess: access.revenue,
       icon: '👥',
       theme: {
@@ -107,6 +134,7 @@ export const KpiCardsV1: React.FC<Props> = ({ kpiData, loading, onOpenDetails })
       subtitle: 'Hợp đồng ký trong kỳ',
       value: formatCount(metrics?.totalContracts, access.revenue),
       raw: metrics?.totalContracts?.toString(),
+      delta: computeDelta(metrics?.totalContracts, prevMetrics?.totalContracts, access.revenue),
       hasAccess: access.revenue,
       icon: '📄',
       theme: {
@@ -124,6 +152,7 @@ export const KpiCardsV1: React.FC<Props> = ({ kpiData, loading, onOpenDetails })
       subtitle: 'Doanh số / Số HĐ',
       value: formatMoney(metrics?.avgSizePerContract, access.revenue),
       raw: metrics?.avgSizePerContract,
+      delta: computeDelta(metrics?.avgSizePerContract, prevMetrics?.avgSizePerContract, access.revenue),
       hasAccess: access.revenue,
       icon: '📊',
       theme: {
@@ -141,6 +170,7 @@ export const KpiCardsV1: React.FC<Props> = ({ kpiData, loading, onOpenDetails })
       subtitle: 'Doanh số / Số KH',
       value: formatMoney(metrics?.avgSizePerCustomer, access.revenue),
       raw: metrics?.avgSizePerCustomer,
+      delta: computeDelta(metrics?.avgSizePerCustomer, prevMetrics?.avgSizePerCustomer, access.revenue),
       hasAccess: access.revenue,
       icon: '🎯',
       theme: {
@@ -215,6 +245,29 @@ export const KpiCardsV1: React.FC<Props> = ({ kpiData, loading, onOpenDetails })
                   c.value
                 )}
               </div>
+
+              {/* Period-over-period % comparison badge */}
+              {c.hasAccess && c.delta.pct !== null && (
+                <div
+                  className="mt-1.5 flex items-center gap-1.5 text-[11px]"
+                  title={c.delta.prevFormatted ? `Kỳ trước: ${c.delta.prevFormatted}` : undefined}
+                >
+                  <span
+                    className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md font-bold border ${
+                      c.delta.pct > 0.05
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : c.delta.pct < -0.05
+                        ? 'bg-rose-50 text-rose-700 border-rose-200'
+                        : 'bg-slate-100 text-slate-600 border-slate-200'
+                    }`}
+                  >
+                    {c.delta.pct > 0.05 ? <TrendingUp size={11} /> : c.delta.pct < -0.05 ? <TrendingDown size={11} /> : <Minus size={11} />}
+                    {c.delta.pct > 0 ? '+' : ''}
+                    {c.delta.pct.toFixed(1)}%
+                  </span>
+                  <span className="text-slate-400 truncate">{comparisonLabel || 'so với kỳ trước'}</span>
+                </div>
+              )}
             </div>
 
             {/* Subtitle / Formula helper */}

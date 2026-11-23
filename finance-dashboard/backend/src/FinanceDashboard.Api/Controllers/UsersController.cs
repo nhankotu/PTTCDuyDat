@@ -47,6 +47,7 @@ public class UsersController : ControllerBase
                 ScopeNodeId = u.ScopeNodeId,
                 ScopeNodeName = u.ScopeNodeName,
                 ScopeNodeRole = u.ScopeNodeRole,
+                IsActive = u.IsActive,
                 CreatedAt = u.CreatedAt
             })
             .ToListAsync();

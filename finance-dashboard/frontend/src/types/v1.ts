@@ -167,6 +167,50 @@ export interface AccessRequestItem {
   createdAt: string;
 }
 
+export interface PeerGrantItem {
+  id: number;
+  userId: number;
+  targetEmployeeId: string;
+  grantRevenue: boolean;
+  grantBalance: boolean;
+  targetScopeType: string;
+  validFrom: string;
+  validTo: string;
+  status: 'ACTIVE' | 'REVOKED' | 'EXPIRED';
+  grantedBy: string;
+  grantReason: string;
+  revokedBy?: string;
+  revokedAt?: string;
+  revocationReason?: string;
+  createdAt: string;
+}
+
+export interface ConfirmedSourceBatch {
+  id: number;
+  sourceType: 'APPENDIX' | 'SETTLEMENT' | 'STOCK' | 'EXCEPTION' | 'EMPLOYEE';
+  fileName: string;
+  sourceDate?: string;
+  effectiveDate?: string;
+  totalRows: number;
+  confirmedAt?: string;
+  confirmedBy?: string;
+}
+
+export interface CreateDatasetPayload {
+  datasetCode: string;
+  title: string;
+  cutoffDate: string;
+  coverageFrom: string;
+  coverageTo: string;
+  amendmentReason?: string;
+  manifest: Array<{
+    sourceType: string;
+    sourceBatchId?: number | null;
+    isConfirmedNoMovement: boolean;
+    notes?: string;
+  }>;
+}
+
 export interface ReportView {
   viewEmployeeId?: string;
   view: 'self' | 'subtree';

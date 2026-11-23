@@ -5,9 +5,20 @@ import { ContractDetailItem, ContractFilters, DimensionFilters, ReportView } fro
 
 interface Props extends ReportView, DimensionFilters {
   fromDate: string; toDate: string; datasetId?: string; asOfDate?: string; basis?: 'sales' | 'balance';
+  onChangeBasis?: (basis: 'sales' | 'balance') => void;
+  refreshKey?: number;
 }
 const money = (value: string | null) => value === null ? 'Không có quyền' : new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 2 }).format(Number(value)) + ' đ';
 const statuses: Record<string, string> = { APPROVED: 'Đã duyệt', LIQUIDATED: 'Đã tất toán', PENDING: 'Chưa duyệt', ADVANCING: 'Đang ứng tiền' };
+const statusBadgeClass = (status: string) => {
+  switch (status) {
+    case 'APPROVED': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+    case 'LIQUIDATED': return 'bg-slate-100 text-slate-700 border-slate-200';
+    case 'PENDING': return 'bg-amber-50 text-amber-800 border-amber-200';
+    case 'ADVANCING': return 'bg-purple-50 text-purple-700 border-purple-200';
+    default: return 'bg-slate-100 text-slate-600 border-slate-200';
+  }
+};
 const inputClass = 'w-full mt-1 px-3 py-2 border border-slate-300 rounded-lg bg-white text-sm text-slate-900';
 
 export function ContractsTableV1(props: Props) {
@@ -68,8 +79,31 @@ export function ContractsTableV1(props: Props) {
   const pages = Math.max(1, Math.ceil(totalCount / pageSize));
   return <section className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-6 space-y-5">
     <div className="flex flex-wrap justify-between items-center gap-3">
-      <div><h2 className="text-lg font-bold text-slate-900">Tra cứu hợp đồng</h2><p className="text-sm text-slate-500">{props.basis === 'balance' ? `Hợp đồng đóng góp số dư tại ${props.asOfDate || props.toDate}, gồm cả hợp đồng ký trước kỳ.` : 'Hợp đồng phát sinh trong kỳ. Tìm trên toàn bộ dữ liệu trong phạm vi được cấp.'}</p></div>
-      <button disabled={exporting || loading || !!error} onClick={exportCsv} className="inline-flex items-center gap-2 bg-emerald-700 text-white rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50"><Download size={17} />{exporting ? 'Đang xuất…' : 'Xuất tất cả kết quả'}</button>
+      <div>
+        <h2 className="text-lg font-bold text-slate-900">Tra cứu hợp đồng</h2>
+        <p className="text-sm text-slate-500">{props.basis === 'balance' ? `Hợp đồng đóng góp số dư tại ${props.asOfDate || props.toDate}, gồm cả hợp đồng ký trước kỳ.` : 'Hợp đồng phát sinh trong kỳ. Tìm trên toàn bộ dữ liệu trong phạm vi được cấp.'}</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {props.onChangeBasis && (
+          <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => { props.onChangeBasis?.('sales'); setPage(1); }}
+              className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${props.basis !== 'balance' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+            >
+              Theo Doanh số kỳ
+            </button>
+            <button
+              type="button"
+              onClick={() => { props.onChangeBasis?.('balance'); setPage(1); }}
+              className={`px-3 py-1.5 rounded-lg transition cursor-pointer ${props.basis === 'balance' ? 'bg-white text-emerald-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'}`}
+            >
+              Theo Số dư tại T
+            </button>
+          </div>
+        )}
+        <button disabled={exporting || loading || !!error} onClick={exportCsv} className="inline-flex items-center gap-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg px-4 py-2 text-sm font-semibold disabled:opacity-50 cursor-pointer"><Download size={17} />{exporting ? 'Đang xuất…' : 'Xuất tất cả kết quả'}</button>
+      </div>
     </div>
     <form onSubmit={e => { e.preventDefault(); apply(); }} className="space-y-3">
       <div className="flex flex-wrap gap-3 items-end">
@@ -108,7 +142,11 @@ export function ContractsTableV1(props: Props) {
               <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">{money(c.contractValue)}</td><td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">{money(c.settledAmount)}</td><td className="px-4 py-3 text-right tabular-nums whitespace-nowrap font-semibold text-emerald-800">{money(c.balance)}</td>
               <td className="px-4 py-3 whitespace-nowrap">{c.signDate}</td>
               {showSales && <><td className="px-4 py-3">{c.saleId}</td><td className="px-4 py-3 font-medium">{c.effectiveSaleId}{c.effectiveSaleId !== c.saleId && <span className="text-xs text-amber-700 block">Đã điều chỉnh</span>}</td></>}
-              <td className="px-4 py-3 whitespace-nowrap">{statuses[c.status] || c.status}</td>
+              <td className="px-4 py-3 whitespace-nowrap">
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${statusBadgeClass(c.status)}`}>
+                  {statuses[c.status] || c.status}
+                </span>
+              </td>
             </tr>)}
         </tbody>
       </table>

@@ -11,6 +11,9 @@ import {
   ImportPreviewResponse,
   ImportConfirmResponse,
   AccessRequestItem,
+  PeerGrantItem,
+  ConfirmedSourceBatch,
+  CreateDatasetPayload,
 } from '../types/v1';
 
 export const apiV1 = {
@@ -183,6 +186,13 @@ export const apiV1 = {
     await api.put(`/v1/permissions/requests/${id}/review`, payload);
   },
 
+  getPeerGrants: async (status?: string): Promise<PeerGrantItem[]> => {
+    const { data } = await api.get<PeerGrantItem[]>('/v1/permissions/peer-grants', {
+      params: status ? { status } : {},
+    });
+    return data;
+  },
+
   createPeerGrant: async (payload: {
     userId: number;
     targetEmployeeId: string;
@@ -251,6 +261,16 @@ export const apiV1 = {
   // 6. Datasets
   getDatasets: async (): Promise<any[]> => {
     const { data } = await api.get('/v1/datasets');
+    return data;
+  },
+
+  getConfirmedBatches: async (): Promise<ConfirmedSourceBatch[]> => {
+    const { data } = await api.get<ConfirmedSourceBatch[]>('/v1/datasets/confirmed-batches');
+    return data;
+  },
+
+  publishDataset: async (payload: CreateDatasetPayload): Promise<{ id: string; message: string }> => {
+    const { data } = await api.post<{ id: string; message: string }>('/v1/datasets', payload);
     return data;
   },
 };

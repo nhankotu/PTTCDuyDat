@@ -1,63 +1,84 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import {
+  GitFork, ListTree, Search, ZoomIn, ZoomOut, RotateCcw, Expand, Minimize2, Users, Building2, UserCog, X, CheckCircle2, AlertCircle
+} from 'lucide-react';
 import { apiV1 } from '../services/apiV1';
 import { OrgTreeNode, ReportView } from '../types/v1';
 import { TreeNode } from '../types';
 
 interface Props extends ReportView {
   datasetId?: string;
+  refreshKey?: number;
   onViewNode: (id: string) => void;
   isAdmin?: boolean;
 }
 
-export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, viewEmployeeId, view, onViewNode }) => {
+export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, viewEmployeeId, view, refreshKey, onViewNode }) => {
   const [treeData, setTreeData] = useState<TreeNode[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const [selectedNode, setSelectedNode] = useState<TreeNode | null>(null);
   const [viewMode, setViewMode] = useState<'pyramid' | 'list'>('pyramid');
   const [zoom, setZoom] = useState<number>(0.95);
 
-  useEffect(() => {
-    loadTree();
-  }, []);
+  // Reparent manager state (Admin only)
+  const [showReparent, setShowReparent] = useState(false);
+  const [newManagerId, setNewManagerId] = useState('');
+  const [effectiveDate, setEffectiveDate] = useState(() => new Date().toLocaleDateString('en-CA'));
+  const [reparentReason, setReparentReason] = useState('');
+  const [reparentBusy, setReparentBusy] = useState(false);
+  const [reparentFeedback, setReparentFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const loadTree = async () => {
     setLoading(true);
+    setErrorMsg(null);
     try {
       const adapt = (node: OrgTreeNode): TreeNode => {
         const children = node.subordinates.map(adapt);
-        return { id: node.employeeId, label: node.fullName, position: node.position,
-          department: node.department, branch: node.branch, region: node.region,
+        return {
+          id: node.employeeId,
+          label: node.fullName,
+          position: node.position,
+          department: node.department,
+          branch: node.branch,
+          region: node.region,
           directSubordinatesCount: children.length,
           totalSubordinatesCount: children.reduce((sum, child) => sum + child.totalSubordinatesCount + 1, 0),
-          totalRevenue: 0, totalBalance: 0, children };
+          totalRevenue: 0,
+          totalBalance: 0,
+          children,
+        };
       };
       const data = (await apiV1.getOrgTree(undefined, { datasetId, viewEmployeeId, view })).map(adapt);
       setTreeData(data);
 
-      // Auto-expand top 2 levels initially
-      const initialExpanded = new Set<string>();
-      data.forEach(root => {
-        initialExpanded.add(root.id);
-        root.children?.forEach(child => initialExpanded.add(child.id));
+      setExpandedNodes((prev) => {
+        if (prev.size > 0) return prev;
+        const initialExpanded = new Set<string>();
+        data.forEach((root) => {
+          initialExpanded.add(root.id);
+          root.children?.forEach((child) => initialExpanded.add(child.id));
+        });
+        return initialExpanded;
       });
-      setExpandedNodes(initialExpanded);
-    } catch (err) {
-      console.error('Lỗi khi tải cây tổ chức:', err);
+    } catch (err: any) {
+      setErrorMsg(err?.response?.data?.message || 'Không tải được sơ đồ cây tổ chức.');
     } finally {
       setLoading(false);
     }
   };
 
+  useEffect(() => {
+    loadTree();
+  }, [datasetId, viewEmployeeId, view, refreshKey]);
+
   const toggleNode = (nodeId: string) => {
-    setExpandedNodes(prev => {
+    setExpandedNodes((prev) => {
       const next = new Set(prev);
-      if (next.has(nodeId)) {
-        next.delete(nodeId);
-      } else {
-        next.add(nodeId);
-      }
+      if (next.has(nodeId)) next.delete(nodeId);
+      else next.add(nodeId);
       return next;
     });
   };
@@ -65,67 +86,68 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, viewEmploy
   const expandAll = () => {
     const allIds = new Set<string>();
     const collectIds = (nodes: TreeNode[]) => {
-      nodes.forEach(n => {
+      nodes.forEach((n) => {
         allIds.add(n.id);
-        if (n.children && n.children.length > 0) {
-          collectIds(n.children);
-        }
+        if (n.children?.length) collectIds(n.children);
       });
     };
     collectIds(treeData);
     setExpandedNodes(allIds);
   };
 
-  const collapseAll = () => {
-    setExpandedNodes(new Set());
-  };
+  const collapseAll = () => setExpandedNodes(new Set());
+
+  // Flatten all nodes for manager dropdown
+  const allFlatEmployees = useMemo(() => {
+    const list: Array<{ id: string; label: string; position: string; branch?: string }> = [];
+    const seen = new Set<string>();
+    const walk = (nodes: TreeNode[]) => {
+      nodes.forEach((n) => {
+        if (!seen.has(n.id)) {
+          seen.add(n.id);
+          list.push({ id: n.id, label: n.label, position: n.position, branch: n.branch });
+        }
+        if (n.children?.length) walk(n.children);
+      });
+    };
+    walk(treeData);
+    return list.sort((a, b) => a.label.localeCompare(b.label, 'vi'));
+  }, [treeData]);
 
   // Statistics calculation
   const stats = useMemo(() => {
-    let total = 0;
-    let ptm = 0;
-    let gdcn = 0;
-    let tpkd = 0;
-    let cvkd = 0;
-    let ctv = 0;
-
+    let total = 0, ptm = 0, gdcn = 0, tpkd = 0, cvkd = 0, ctv = 0;
     const traverse = (nodes: TreeNode[]) => {
-      nodes.forEach(n => {
+      nodes.forEach((n) => {
         total++;
         const pos = (n.position || '').toUpperCase();
         if (pos.includes('PTM') || pos.includes('TGĐ')) ptm++;
         else if (pos.includes('GĐCN') || pos.includes('GDCN')) gdcn++;
         else if (pos.includes('TPKD') || pos.includes('TRƯỞNG PHÒNG')) tpkd++;
-        else if (pos.includes('CVKD') || pos.includes('SALE')) cvkd++;
         else if (pos.includes('CTV')) ctv++;
         else cvkd++;
-
-        if (n.children && n.children.length > 0) {
-          traverse(n.children);
-        }
+        if (n.children?.length) traverse(n.children);
       });
     };
     traverse(treeData);
-
     return { total, ptm, gdcn, tpkd, cvkd, ctv };
   }, [treeData]);
 
-  // Color styles per position
   const getBadgeStyle = (pos: string) => {
     const p = (pos || '').toUpperCase();
     if (p.includes('PTM') || p.includes('TGĐ')) {
-      return { bg: '#581c87', border: '#a855f7', text: '#e9d5ff', label: 'GĐ Miền (PTM)', accent: '#c084fc' };
+      return { badge: 'bg-purple-100 text-purple-800 border-purple-200', border: 'border-purple-300', accent: 'text-purple-700' };
     }
     if (p.includes('GĐCN') || p.includes('GDCN')) {
-      return { bg: '#1e3a8a', border: '#3b82f6', text: '#bfdbfe', label: 'GĐ Chi nhánh', accent: '#60a5fa' };
+      return { badge: 'bg-blue-100 text-blue-800 border-blue-200', border: 'border-blue-300', accent: 'text-blue-700' };
     }
     if (p.includes('TPKD') || p.includes('TRƯỞNG PHÒNG')) {
-      return { bg: '#064e3b', border: '#10b981', text: '#a7f3d0', label: 'Trưởng phòng KD', accent: '#34d399' };
+      return { badge: 'bg-emerald-100 text-emerald-800 border-emerald-200', border: 'border-emerald-300', accent: 'text-emerald-700' };
     }
     if (p.includes('CTV')) {
-      return { bg: '#334155', border: '#64748b', text: '#cbd5e1', label: 'Cộng tác viên', accent: '#94a3b8' };
+      return { badge: 'bg-slate-100 text-slate-700 border-slate-200', border: 'border-slate-300', accent: 'text-slate-600' };
     }
-    return { bg: '#78350f', border: '#f59e0b', text: '#fde68a', label: 'Chuyên viên KD', accent: '#fbbf24' };
+    return { badge: 'bg-amber-100 text-amber-800 border-amber-200', border: 'border-amber-300', accent: 'text-amber-700' };
   };
 
   const nodeMatchesSearch = (node: TreeNode, term: string): boolean => {
@@ -134,143 +156,92 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, viewEmploy
     const matchThis =
       node.label.toLowerCase().includes(lower) ||
       node.id.toLowerCase().includes(lower) ||
-      (node.department && node.department.toLowerCase().includes(lower)) ||
-      (node.branch && node.branch.toLowerCase().includes(lower));
-
+      (node.department?.toLowerCase().includes(lower) ?? false) ||
+      (node.branch?.toLowerCase().includes(lower) ?? false);
     if (matchThis) return true;
-    return (node.children || []).some(child => nodeMatchesSearch(child, term));
+    return (node.children || []).some((child) => nodeMatchesSearch(child, term));
   };
 
-  /* -------------------------------------------------------------
-   * 1. PYRAMID / ORG CHART NODE COMPONENT
-   * ----------------------------------------------------------- */
-  const renderPyramidNode = (node: TreeNode): React.ReactNode => {
-    if (searchTerm && !nodeMatchesSearch(node, searchTerm)) {
-      return null;
+  const openNodeModal = (node: TreeNode) => {
+    setSelectedNode(node);
+    setShowReparent(false);
+    setNewManagerId('');
+    setReparentReason('');
+    setReparentFeedback(null);
+  };
+
+  const handleReparentSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedNode || !newManagerId || !reparentReason.trim()) {
+      setReparentFeedback({ type: 'error', text: 'Vui lòng chọn quản lý mới và nhập lý do điều chuyển.' });
+      return;
     }
+    setReparentBusy(true);
+    setReparentFeedback(null);
+    try {
+      await apiV1.reparentManager(selectedNode.id, {
+        newManagerEmployeeId: newManagerId,
+        effectiveDate,
+        reason: reparentReason.trim(),
+      });
+      setReparentFeedback({ type: 'success', text: `Đã cập nhật quản lý mới cho ${selectedNode.label}.` });
+      setShowReparent(false);
+      await loadTree();
+    } catch (err: any) {
+      setReparentFeedback({
+        type: 'error',
+        text: err?.response?.data?.message || 'Không thể cập nhật quản lý trực tiếp.',
+      });
+    } finally {
+      setReparentBusy(false);
+    }
+  };
+
+  const renderPyramidNode = (node: TreeNode): React.ReactNode => {
+    if (searchTerm && !nodeMatchesSearch(node, searchTerm)) return null;
 
     const isExpanded = expandedNodes.has(node.id);
     const hasChildren = node.children && node.children.length > 0;
-    const badge = getBadgeStyle(node.position);
+    const style = getBadgeStyle(node.position);
     const isMatching =
       searchTerm &&
       (node.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
         node.id.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    const filteredChildren = (node.children || []).filter(c =>
+    const filteredChildren = (node.children || []).filter((c) =>
       searchTerm ? nodeMatchesSearch(c, searchTerm) : true
     );
 
     return (
-      <div
-        key={node.id}
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          position: 'relative',
-          padding: '0 12px',
-        }}
-      >
-        {/* The Node Card */}
+      <div key={node.id} className="flex flex-col items-center relative px-3">
         <div
-          onClick={() => setSelectedNode(node)}
-          style={{
-            width: '230px',
-            background: isMatching ? 'rgba(234, 179, 8, 0.15)' : '#0f172a',
-            border: isMatching ? '2px solid #eab308' : `1.5px solid ${badge.border}`,
-            borderRadius: '12px',
-            padding: '12px 14px',
-            boxShadow: '0 6px 18px rgba(0, 0, 0, 0.35)',
-            cursor: 'pointer',
-            transition: 'all 0.2s ease',
-            position: 'relative',
-            zIndex: 10,
-          }}
+          onClick={() => openNodeModal(node)}
+          className={`w-[230px] rounded-xl p-3.5 shadow-sm hover:shadow-md transition-all cursor-pointer relative z-10 border-2 ${
+            isMatching ? 'bg-amber-50 border-amber-400 ring-2 ring-amber-300/50' : `bg-white ${style.border}`
+          }`}
         >
-          {/* Top header badge */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-            <span
-              style={{
-                background: badge.bg,
-                color: badge.text,
-                border: `1px solid ${badge.border}`,
-                fontSize: '10px',
-                fontWeight: 800,
-                padding: '2px 8px',
-                borderRadius: '6px',
-                letterSpacing: '0.4px',
-                textTransform: 'uppercase',
-              }}
-            >
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wide border ${style.badge}`}>
               {node.position || 'CVKD'}
             </span>
-            <span
-              style={{
-                fontFamily: 'monospace',
-                fontSize: '11px',
-                color: '#94a3b8',
-                background: 'rgba(255, 255, 255, 0.08)',
-                padding: '1px 6px',
-                borderRadius: '4px',
-              }}
-            >
+            <span className="font-mono text-[11px] text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
               #{node.id}
             </span>
           </div>
 
-          {/* Name */}
-          <div
-            style={{
-              color: '#ffffff',
-              fontSize: '14px',
-              fontWeight: 700,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-            title={node.label}
-          >
+          <div className="text-sm font-bold text-slate-900 truncate" title={node.label}>
             {node.label}
           </div>
 
-          {/* Branch / Dept */}
-          <div
-            style={{
-              fontSize: '11px',
-              color: '#94a3b8',
-              marginTop: '4px',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-            title={`${node.branch || ''} - ${node.department || ''}`}
-          >
-            🏛️ {node.branch || node.department || 'Đơn vị kinh doanh'}
+          <div className="flex items-center gap-1 text-[11px] text-slate-500 mt-1 truncate" title={`${node.branch || ''} - ${node.department || ''}`}>
+            <Building2 size={11} className="shrink-0" />
+            <span className="truncate">{node.branch || node.department || 'Đơn vị kinh doanh'}</span>
           </div>
 
-          {/* Bottom footer: Subordinate count + expand/collapse button */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              marginTop: '10px',
-              paddingTop: '8px',
-              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
-            }}
-          >
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: 600,
-                color: badge.accent,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-              }}
-            >
-              👥 {node.totalSubordinatesCount} cấp dưới
+          <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-slate-100">
+            <span className={`text-[11px] font-semibold inline-flex items-center gap-1 ${style.accent}`}>
+              <Users size={12} />
+              {node.totalSubordinatesCount} cấp dưới
             </span>
 
             {hasChildren && (
@@ -280,21 +251,11 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, viewEmploy
                   e.stopPropagation();
                   toggleNode(node.id);
                 }}
-                style={{
-                  width: '24px',
-                  height: '24px',
-                  borderRadius: '6px',
-                  background: isExpanded ? '#0284c7' : 'rgba(255, 255, 255, 0.12)',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  transition: 'background 0.2s',
-                }}
+                className={`w-6 h-6 rounded-md text-xs font-bold flex items-center justify-center cursor-pointer transition ${
+                  isExpanded
+                    ? 'bg-blue-600 text-white hover:bg-blue-700'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                }`}
                 title={isExpanded ? 'Thu gọn nhánh' : 'Mở rộng nhánh'}
               >
                 {isExpanded ? '−' : '+'}
@@ -303,62 +264,19 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, viewEmploy
           </div>
         </div>
 
-        {/* Vertical trunk line from card to children connector */}
         {hasChildren && isExpanded && filteredChildren.length > 0 && (
-          <div
-            style={{
-              width: '2px',
-              height: '28px',
-              background: 'rgba(56, 189, 248, 0.5)',
-              margin: '0 auto',
-            }}
-          />
+          <div className="w-0.5 h-7 bg-slate-300 mx-auto" />
         )}
 
-        {/* Children Row with Branch Lines */}
         {hasChildren && isExpanded && filteredChildren.length > 0 && (
-          <div
-            style={{
-              display: 'flex',
-              justifyContent: 'center',
-              position: 'relative',
-              paddingTop: '12px',
-            }}
-          >
-            {/* Horizontal connector line spanning across all children */}
+          <div className="flex justify-center relative pt-3">
             {filteredChildren.length > 1 && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '0px',
-                  left: '115px', // half card width
-                  right: '115px',
-                  height: '2px',
-                  background: 'rgba(56, 189, 248, 0.5)',
-                }}
-              />
+              <div className="absolute top-0 left-[115px] right-[115px] h-0.5 bg-slate-300" />
             )}
 
-            {filteredChildren.map((child, index) => (
-              <div
-                key={child.id}
-                style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  position: 'relative',
-                }}
-              >
-                {/* Drop line from horizontal connector down to child node */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: '-12px',
-                    width: '2px',
-                    height: '12px',
-                    background: 'rgba(56, 189, 248, 0.5)',
-                  }}
-                />
+            {filteredChildren.map((child) => (
+              <div key={child.id} className="flex flex-col items-center relative">
+                <div className="absolute -top-3 w-0.5 h-3 bg-slate-300" />
                 {renderPyramidNode(child)}
               </div>
             ))}
@@ -368,149 +286,56 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, viewEmploy
     );
   };
 
-  /* -------------------------------------------------------------
-   * 2. TREE LIST / FOLDER NODE COMPONENT
-   * ----------------------------------------------------------- */
-  const renderListNode = (node: TreeNode, depth: number = 0) => {
-    if (searchTerm && !nodeMatchesSearch(node, searchTerm)) {
-      return null;
-    }
+  const renderListNode = (node: TreeNode, depth = 0) => {
+    if (searchTerm && !nodeMatchesSearch(node, searchTerm)) return null;
 
     const isExpanded = expandedNodes.has(node.id);
     const hasChildren = node.children && node.children.length > 0;
-    const badge = getBadgeStyle(node.position);
+    const style = getBadgeStyle(node.position);
     const isMatching =
       searchTerm &&
       (node.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
         node.id.toLowerCase().includes(searchTerm.toLowerCase()));
 
     return (
-      <div key={node.id} style={{ marginLeft: depth > 0 ? '24px' : '0px', marginTop: '8px' }}>
+      <div key={node.id} style={{ marginLeft: depth > 0 ? '24px' : '0px' }} className="mt-2">
         <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            background: isMatching
-              ? 'rgba(234, 179, 8, 0.15)'
-              : 'rgba(23, 42, 69, 0.7)',
-            border: isMatching
-              ? '1.5px solid #eab308'
-              : '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: '10px',
-            padding: '10px 14px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-            transition: 'all 0.2s',
-          }}
+          onClick={() => openNodeModal(node)}
+          className={`flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl border cursor-pointer transition ${
+            isMatching ? 'bg-amber-50 border-amber-400' : 'bg-white border-slate-200 hover:border-blue-300 hover:bg-blue-50/30'
+          }`}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
+          <div className="flex items-center gap-2.5 min-w-0">
             {hasChildren ? (
               <button
                 type="button"
-                onClick={() => toggleNode(node.id)}
-                style={{
-                  width: '26px',
-                  height: '26px',
-                  borderRadius: '6px',
-                  background: isExpanded ? '#0284c7' : 'rgba(255, 255, 255, 0.1)',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleNode(node.id);
                 }}
+                className="w-6 h-6 rounded-md bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs flex items-center justify-center cursor-pointer shrink-0"
               >
                 {isExpanded ? '−' : '+'}
               </button>
             ) : (
-              <div style={{ width: '26px', textAlign: 'center', color: '#64748b' }}>•</div>
+              <span className="w-6 h-6 inline-block shrink-0" />
             )}
-
-            <span
-              style={{
-                background: badge.bg,
-                border: `1px solid ${badge.border}`,
-                color: badge.text,
-                fontSize: '11px',
-                fontWeight: 700,
-                padding: '2px 8px',
-                borderRadius: '6px',
-              }}
-            >
+            <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase border shrink-0 ${style.badge}`}>
               {node.position || 'CVKD'}
             </span>
-
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span
-                  style={{ color: '#ffffff', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}
-                  onClick={() => setSelectedNode(node)}
-                >
-                  {node.label}
-                </span>
-                <span
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.08)',
-                    color: '#94a3b8',
-                    fontSize: '11px',
-                    padding: '1px 6px',
-                    borderRadius: '4px',
-                    fontFamily: 'monospace',
-                  }}
-                >
-                  {node.id}
-                </span>
-              </div>
-              {(node.branch || node.department) && (
-                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                  {node.branch && <span>🏛️ {node.branch}</span>}
-                  {node.branch && node.department && <span> • </span>}
-                  {node.department && <span>📑 {node.department}</span>}
-                </div>
-              )}
-            </div>
+            <span className="font-bold text-sm text-slate-900 truncate">{node.label}</span>
+            <span className="font-mono text-xs text-slate-500">#{node.id}</span>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {hasChildren && (
-              <div
-                style={{
-                  background: 'rgba(14, 165, 233, 0.12)',
-                  border: '1px solid rgba(14, 165, 233, 0.3)',
-                  color: '#38bdf8',
-                  padding: '3px 10px',
-                  borderRadius: '20px',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                }}
-              >
-                👥 {node.directSubordinatesCount} trực tiếp / {node.totalSubordinatesCount} toàn nhánh
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={() => setSelectedNode(node)}
-              style={{
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                color: '#cbd5e1',
-                padding: '4px 10px',
-                borderRadius: '6px',
-                fontSize: '11px',
-                cursor: 'pointer',
-              }}
-            >
-              Chi tiết
-            </button>
+          <div className="flex items-center gap-3 text-xs text-slate-500">
+            <span>{node.branch || node.department || '—'}</span>
+            <span className={`font-semibold ${style.accent}`}>{node.totalSubordinatesCount} cấp dưới</span>
           </div>
         </div>
 
         {hasChildren && isExpanded && (
-          <div style={{ borderLeft: '2px dashed rgba(255, 255, 255, 0.15)', marginLeft: '12px', paddingLeft: '6px' }}>
-            {node.children.map(child => renderListNode(child, depth + 1))}
+          <div className="border-l-2 border-slate-200 ml-3 pl-1">
+            {node.children.map((child) => renderListNode(child, depth + 1))}
           </div>
         )}
       </div>
@@ -518,381 +343,280 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, viewEmploy
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {/* Header bar */}
-      <div
-        style={{
-          background: '#112240',
-          border: '1px solid #233554',
-          borderRadius: '12px',
-          padding: '20px 24px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-          <div>
-            <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#ffffff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>🌳 Sơ Đồ Cây Phân Cấp Kim Tự Tháp & Cấp Quản Lý</span>
-            </h2>
-            <p style={{ fontSize: '13px', color: '#94a3b8', margin: '4px 0 0 0' }}>
-              Phân cấp đa tầng: Ban Giám đốc Miền → Giám đốc Chi nhánh → Trưởng phòng KD → Chuyên viên Sale → Cộng tác viên.
-            </p>
+    <div className="space-y-5">
+      {/* Header & Stats */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 flex items-center justify-center">
+              <GitFork size={18} />
+            </div>
+            <div>
+              <h2 className="text-base font-extrabold text-slate-900 uppercase tracking-wide">
+                Sơ Đồ Cây Tổ Chức Nhân Sự
+              </h2>
+              <p className="text-xs text-slate-500 font-medium">
+                Bấm vào từng nhân sự để xem thông tin chi tiết, xem báo cáo nhánh hoặc điều chuyển cấp quản lý.
+              </p>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            {/* View Mode Toggle Button */}
-            <div
-              style={{
-                display: 'flex',
-                background: '#0a192f',
-                border: '1px solid #233554',
-                borderRadius: '8px',
-                padding: '2px',
-              }}
-            >
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
               <button
                 type="button"
                 onClick={() => setViewMode('pyramid')}
-                style={{
-                  background: viewMode === 'pyramid' ? '#0284c7' : 'transparent',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '5px 12px',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  transition: 'all 0.2s',
-                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition ${
+                  viewMode === 'pyramid' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
               >
-                <span>🏛️</span>
-                <span>Kim tự tháp</span>
+                <GitFork size={13} /> Sơ đồ nhánh
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode('list')}
-                style={{
-                  background: viewMode === 'list' ? '#0284c7' : 'transparent',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '5px 12px',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  transition: 'all 0.2s',
-                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition ${
+                  viewMode === 'list' ? 'bg-white text-blue-700 shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
               >
-                <span>📋</span>
-                <span>Danh sách</span>
+                <ListTree size={13} /> Danh sách cây
               </button>
             </div>
 
-            {/* Zoom Controls for Pyramid mode */}
             {viewMode === 'pyramid' && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  background: '#0a192f',
-                  border: '1px solid #233554',
-                  borderRadius: '8px',
-                  padding: '2px 6px',
-                  gap: '4px',
-                }}
-              >
-                <button
-                  type="button"
-                  onClick={() => setZoom(z => Math.max(0.5, z - 0.1))}
-                  style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '14px', cursor: 'pointer', padding: '2px 6px' }}
-                  title="Thu nhỏ"
-                >
-                  🔍−
+              <div className="inline-flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl px-2 py-1 text-xs">
+                <button type="button" onClick={() => setZoom((z) => Math.max(0.45, +(z - 0.1).toFixed(2)))} className="p-1 hover:bg-white rounded cursor-pointer" title="Thu nhỏ">
+                  <ZoomOut size={14} />
                 </button>
-                <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 600, minWidth: '35px', textAlign: 'center' }}>
-                  {Math.round(zoom * 100)}%
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setZoom(z => Math.min(1.5, z + 0.1))}
-                  style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '14px', cursor: 'pointer', padding: '2px 6px' }}
-                  title="Phóng to"
-                >
-                  🔍+
+                <span className="font-mono font-bold text-slate-700 w-10 text-center">{Math.round(zoom * 100)}%</span>
+                <button type="button" onClick={() => setZoom((z) => Math.min(1.4, +(z + 0.1).toFixed(2)))} className="p-1 hover:bg-white rounded cursor-pointer" title="Phóng to">
+                  <ZoomIn size={14} />
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setZoom(0.95)}
-                  style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: '10px', cursor: 'pointer', padding: '2px 4px' }}
-                  title="Đặt lại"
-                >
-                  100%
+                <button type="button" onClick={() => setZoom(0.95)} className="p-1 hover:bg-white rounded cursor-pointer" title="Mặc định">
+                  <RotateCcw size={13} />
                 </button>
               </div>
             )}
 
-            <button
-              type="button"
-              onClick={expandAll}
-              style={{
-                background: '#0284c7',
-                border: 'none',
-                color: '#ffffff',
-                padding: '6px 14px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              ➕ Mở rộng
+            <button type="button" onClick={expandAll} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer">
+              <Expand size={13} /> Mở tất cả
             </button>
-            <button
-              type="button"
-              onClick={collapseAll}
-              style={{
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                color: '#ffffff',
-                padding: '6px 14px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              ➖ Thu gọn
-            </button>
-            <button
-              type="button"
-              onClick={loadTree}
-              style={{
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                color: '#ffffff',
-                padding: '6px 14px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              🔄 Tải lại
+            <button type="button" onClick={collapseAll} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer">
+              <Minimize2 size={13} /> Thu gọn
             </button>
           </div>
         </div>
 
-        {/* Statistics cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
-          <div style={{ background: '#0a192f', border: '1px solid #1e293b', borderRadius: '8px', padding: '10px 14px' }}>
-            <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Tổng nhân sự</div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#38bdf8', marginTop: '2px' }}>{stats.total}</div>
-          </div>
-          <div style={{ background: '#0a192f', border: '1px solid #1e293b', borderRadius: '8px', padding: '10px 14px' }}>
-            <div style={{ fontSize: '11px', color: '#c084fc', fontWeight: 600, textTransform: 'uppercase' }}>GĐ Miền (PTM)</div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#c084fc', marginTop: '2px' }}>{stats.ptm}</div>
-          </div>
-          <div style={{ background: '#0a192f', border: '1px solid #1e293b', borderRadius: '8px', padding: '10px 14px' }}>
-            <div style={{ fontSize: '11px', color: '#60a5fa', fontWeight: 600, textTransform: 'uppercase' }}>GĐ Chi nhánh</div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#60a5fa', marginTop: '2px' }}>{stats.gdcn}</div>
-          </div>
-          <div style={{ background: '#0a192f', border: '1px solid #1e293b', borderRadius: '8px', padding: '10px 14px' }}>
-            <div style={{ fontSize: '11px', color: '#34d399', fontWeight: 600, textTransform: 'uppercase' }}>Trưởng phòng KD</div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#34d399', marginTop: '2px' }}>{stats.tpkd}</div>
-          </div>
-          <div style={{ background: '#0a192f', border: '1px solid #1e293b', borderRadius: '8px', padding: '10px 14px' }}>
-            <div style={{ fontSize: '11px', color: '#fbbf24', fontWeight: 600, textTransform: 'uppercase' }}>Chuyên viên Sale</div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#fbbf24', marginTop: '2px' }}>{stats.cvkd}</div>
-          </div>
-          <div style={{ background: '#0a192f', border: '1px solid #1e293b', borderRadius: '8px', padding: '10px 14px' }}>
-            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Cộng tác viên</div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#cbd5e1', marginTop: '2px' }}>{stats.ctv}</div>
-          </div>
+        {/* Stat pills */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 text-xs">
+          {[
+            { label: 'Tổng nhân sự', value: stats.total, color: 'bg-slate-50 border-slate-200 text-slate-900' },
+            { label: 'GĐ Miền (PTM)', value: stats.ptm, color: 'bg-purple-50 border-purple-200 text-purple-900' },
+            { label: 'GĐ Chi nhánh', value: stats.gdcn, color: 'bg-blue-50 border-blue-200 text-blue-900' },
+            { label: 'Trưởng phòng', value: stats.tpkd, color: 'bg-emerald-50 border-emerald-200 text-emerald-900' },
+            { label: 'Chuyên viên KD', value: stats.cvkd, color: 'bg-amber-50 border-amber-200 text-amber-900' },
+            { label: 'Cộng tác viên', value: stats.ctv, color: 'bg-slate-100 border-slate-200 text-slate-800' },
+          ].map((s) => (
+            <div key={s.label} className={`rounded-xl border px-3 py-2 ${s.color}`}>
+              <div className="text-[11px] font-semibold opacity-80">{s.label}</div>
+              <div className="text-lg font-black">{s.value.toLocaleString('vi-VN')}</div>
+            </div>
+          ))}
         </div>
 
-        {/* Search bar & Legend */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-          <div style={{ flex: 1, minWidth: '260px' }}>
+        {/* Search & Legend */}
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+          <div className="relative flex-1 min-w-[240px] max-w-md">
+            <Search size={15} className="absolute left-3 top-2.5 text-slate-400" />
             <input
               type="text"
-              placeholder="🔍 Tìm kiếm theo Tên, Mã nhân viên, Phòng ban, Chi nhánh..."
               value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              style={{
-                width: '100%',
-                background: '#0a192f',
-                border: '1px solid #233554',
-                color: '#ffffff',
-                padding: '8px 14px',
-                borderRadius: '8px',
-                fontSize: '13px',
-                outline: 'none',
-              }}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Tìm nhân sự theo tên, mã NV, chi nhánh, phòng ban..."
+              className="w-full pl-9 pr-3 py-2 text-xs sm:text-sm border border-slate-300 rounded-xl bg-slate-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20"
             />
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', fontSize: '11px' }}>
-            <span style={{ color: '#94a3b8' }}>Ký hiệu cấp bậc:</span>
-            <span style={{ background: '#581c87', color: '#e9d5ff', padding: '2px 8px', borderRadius: '4px' }}>PTM (Miền)</span>
-            <span style={{ background: '#1e3a8a', color: '#bfdbfe', padding: '2px 8px', borderRadius: '4px' }}>GĐCN (Chi nhánh)</span>
-            <span style={{ background: '#064e3b', color: '#a7f3d0', padding: '2px 8px', borderRadius: '4px' }}>TPKD (Phòng KD)</span>
-            <span style={{ background: '#78350f', color: '#fde68a', padding: '2px 8px', borderRadius: '4px' }}>CVKD (Sale)</span>
-            <span style={{ background: '#334155', color: '#cbd5e1', padding: '2px 8px', borderRadius: '4px' }}>CTV</span>
+          <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+            <span className="text-slate-500">Cấp bậc:</span>
+            <span className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded">PTM (Miền)</span>
+            <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded">GĐCN</span>
+            <span className="bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded">TPKD</span>
+            <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded">CVKD</span>
+            <span className="bg-slate-100 text-slate-700 px-2 py-0.5 rounded">CTV</span>
           </div>
         </div>
       </div>
 
-      {/* Main tree view container */}
-      <div
-        style={{
-          background: '#112240',
-          border: '1px solid #233554',
-          borderRadius: '12px',
-          padding: '24px',
-          minHeight: '500px',
-          overflowX: 'auto',
-          overflowY: 'auto',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
-        }}
-      >
+      {errorMsg && (
+        <div role="alert" className="bg-rose-50 border border-rose-200 text-rose-800 p-4 rounded-xl text-xs font-medium">
+          {errorMsg}
+        </div>
+      )}
+
+      {/* Main tree container */}
+      <div className="bg-slate-50/80 border border-slate-200 rounded-2xl p-6 min-h-[480px] overflow-auto shadow-inner">
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '80px 0', color: '#94a3b8' }}>
-            <div style={{ fontSize: '28px', marginBottom: '8px' }}>🔄</div>
-            <div>Đang tải sơ đồ cây tổ chức...</div>
+          <div className="py-20 text-center text-slate-500">
+            <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+            <div className="text-xs font-medium">Đang tải sơ đồ cây tổ chức...</div>
           </div>
         ) : treeData.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '80px 0', color: '#64748b' }}>
-            <div style={{ fontSize: '36px', marginBottom: '8px' }}>🌳</div>
-            <div>Chưa có dữ liệu nhân sự. Vui lòng nạp file Excel nhân sự.</div>
+          <div className="py-20 text-center text-slate-500 text-sm">
+            Chưa có dữ liệu nhân sự. Vui lòng nạp file Excel nhân sự.
           </div>
         ) : viewMode === 'pyramid' ? (
-          /* SƠ ĐỒ KIM TỰ THÁP (ORG CHART) */
           <div
-            style={{
-              display: 'inline-flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              minWidth: '100%',
-              transform: `scale(${zoom})`,
-              transformOrigin: 'top center',
-              transition: 'transform 0.15s ease-out',
-              padding: '20px 0',
-            }}
+            style={{ transform: `scale(${zoom})`, transformOrigin: 'top center' }}
+            className="inline-flex flex-col items-center min-w-full transition-transform duration-150 py-4"
           >
-            <div style={{ display: 'flex', gap: '60px', justifyContent: 'center' }}>
-              {treeData.map(rootNode => renderPyramidNode(rootNode))}
+            <div className="flex gap-14 justify-center">
+              {treeData.map((rootNode) => renderPyramidNode(rootNode))}
             </div>
           </div>
         ) : (
-          /* DANH SÁCH THỤT LẦN (TREE LIST) */
-          <div>
-            {treeData.map(rootNode => renderListNode(rootNode, 0))}
+          <div className="max-w-4xl mx-auto">
+            {treeData.map((rootNode) => renderListNode(rootNode, 0))}
           </div>
         )}
       </div>
 
-      {/* Node detail Modal */}
+      {/* Node detail modal */}
       {selectedNode && (
         <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-            padding: '20px',
-          }}
+          className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4"
           onClick={() => setSelectedNode(null)}
         >
           <div
-            style={{
-              width: '100%',
-              maxWidth: '460px',
-              background: '#112240',
-              border: '1px solid #233554',
-              borderRadius: '12px',
-              padding: '24px',
-              boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
-            }}
-            onClick={e => e.stopPropagation()}
+            className="w-full max-w-lg bg-white border border-slate-200 rounded-2xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, color: '#ffffff', fontSize: '16px', fontWeight: 700 }}>
-                Chi Tiết Nhân Sự & Cấp Quản Lý
-              </h3>
-              <button
-                type="button"
-                onClick={() => setSelectedNode(null)}
-                style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '18px', cursor: 'pointer' }}
-              >
-                ✕
+            <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+              <h3 className="text-base font-extrabold text-slate-900">Chi Tiết Nhân Sự & Cấp Quản Lý</h3>
+              <button type="button" onClick={() => setSelectedNode(null)} className="text-slate-400 hover:text-slate-700 cursor-pointer">
+                <X size={18} />
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ color: '#64748b' }}>Họ và tên:</span>
-                <span style={{ color: '#ffffff', fontWeight: 600 }}>{selectedNode.label}</span>
+            {reparentFeedback && (
+              <div
+                className={`flex items-center gap-2 p-3 rounded-xl text-xs font-medium border ${
+                  reparentFeedback.type === 'success'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-rose-50 border-rose-200 text-rose-800'
+                }`}
+              >
+                {reparentFeedback.type === 'success' ? <CheckCircle2 size={15} /> : <AlertCircle size={15} />}
+                <span>{reparentFeedback.text}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ color: '#64748b' }}>Mã nhân viên (ID):</span>
-                <span style={{ color: '#38bdf8', fontFamily: 'monospace', fontWeight: 600 }}>{selectedNode.id}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ color: '#64748b' }}>Chức danh:</span>
-                <span style={{ color: '#ffffff', fontWeight: 600 }}>{selectedNode.position}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ color: '#64748b' }}>Chi nhánh:</span>
-                <span style={{ color: '#ffffff' }}>{selectedNode.branch || '—'}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ color: '#64748b' }}>Phòng ban:</span>
-                <span style={{ color: '#ffffff' }}>{selectedNode.department || '—'}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ color: '#64748b' }}>Khu vực / Miền:</span>
-                <span style={{ color: '#ffffff' }}>{selectedNode.region || '—'}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ color: '#64748b' }}>Cấp dưới trực tiếp:</span>
-                <span style={{ color: '#38bdf8', fontWeight: 600 }}>{selectedNode.directSubordinatesCount} nhân sự</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ color: '#64748b' }}>Tổng nhân sự toàn cây con:</span>
-                <span style={{ color: '#22c55e', fontWeight: 700 }}>{selectedNode.totalSubordinatesCount} nhân sự</span>
-              </div>
-            </div>
+            )}
 
-            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              <button type="button" onClick={() => onViewNode(selectedNode.id)} className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold text-sm">Xem thống kê node này</button>
+            <dl className="divide-y divide-slate-100 text-xs sm:text-sm">
+              {[
+                ['Họ và tên', selectedNode.label],
+                ['Mã nhân viên', `#${selectedNode.id}`],
+                ['Chức danh', selectedNode.position || '—'],
+                ['Chi nhánh', selectedNode.branch || '—'],
+                ['Phòng ban', selectedNode.department || '—'],
+                ['Khu vực / Miền', selectedNode.region || '—'],
+                ['Cấp dưới trực tiếp', `${selectedNode.directSubordinatesCount} nhân sự`],
+                ['Tổng nhân sự cây con', `${selectedNode.totalSubordinatesCount} nhân sự`],
+              ].map(([k, v]) => (
+                <div key={k} className="flex justify-between py-2.5 gap-4">
+                  <dt className="text-slate-500">{k}</dt>
+                  <dd className="font-semibold text-slate-900 text-right">{v}</dd>
+                </div>
+              ))}
+            </dl>
+
+            {/* Admin Reparent Manager Form */}
+            {isAdmin && showReparent && (
+              <form onSubmit={handleReparentSubmit} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                <div className="font-bold text-xs text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                  <UserCog size={14} className="text-blue-600" />
+                  <span>Điều chuyển quản lý trực tiếp</span>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Quản lý trực tiếp mới *</label>
+                  <select
+                    required
+                    value={newManagerId}
+                    onChange={(e) => setNewManagerId(e.target.value)}
+                    className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white text-slate-900"
+                  >
+                    <option value="">-- Chọn nhân sự quản lý mới --</option>
+                    {allFlatEmployees
+                      .filter((emp) => emp.id !== selectedNode.id)
+                      .map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.label} [{emp.position}] (#{emp.id})
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Ngày hiệu lực *</label>
+                    <input
+                      type="date"
+                      required
+                      value={effectiveDate}
+                      onChange={(e) => setEffectiveDate(e.target.value)}
+                      className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white text-slate-900"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Lý do điều chuyển *</label>
+                    <input
+                      type="text"
+                      required
+                      value={reparentReason}
+                      onChange={(e) => setReparentReason(e.target.value)}
+                      placeholder="vd: Điều chuyển phòng KD"
+                      className="w-full text-xs border border-slate-300 rounded-lg p-2 bg-white text-slate-900"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowReparent(false)}
+                    className="px-3 py-1.5 text-xs font-semibold border border-slate-300 rounded-lg bg-white text-slate-700 cursor-pointer"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={reparentBusy}
+                    className="px-3 py-1.5 text-xs font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 cursor-pointer"
+                  >
+                    {reparentBusy ? 'Đang lưu...' : 'Lưu điều chuyển'}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            <div className="flex flex-wrap justify-end gap-2 pt-2 border-t border-slate-200">
+              {isAdmin && !showReparent && (
+                <button
+                  type="button"
+                  onClick={() => setShowReparent(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold text-xs cursor-pointer"
+                >
+                  <UserCog size={14} /> Đổi quản lý
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => onViewNode(selectedNode.id)}
+                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs cursor-pointer"
+              >
+                Xem thống kê node này
+              </button>
               <button
                 type="button"
                 onClick={() => setSelectedNode(null)}
-                style={{
-                  background: '#0284c7',
-                  border: 'none',
-                  color: '#ffffff',
-                  padding: '8px 18px',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
+                className="px-4 py-2 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs cursor-pointer"
               >
                 Đóng
               </button>

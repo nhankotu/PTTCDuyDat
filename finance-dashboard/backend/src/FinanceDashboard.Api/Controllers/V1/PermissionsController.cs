@@ -126,6 +126,25 @@ public class PermissionsController : ControllerBase
         }
     }
 
+    [HttpGet("peer-grants")]
+    public async Task<ActionResult<List<AccessPeerGrant>>> GetPeerGrants([FromQuery] string? status)
+    {
+        var role = User.FindFirstValue(ClaimTypes.Role);
+        if (role != "admin")
+        {
+            return Forbid();
+        }
+
+        using var connection = _db.CreateNpgsqlConnection();
+        await connection.OpenAsync();
+
+        var sql = string.IsNullOrEmpty(status)
+            ? "SELECT * FROM access_peer_grant ORDER BY created_at DESC;"
+            : "SELECT * FROM access_peer_grant WHERE status = @Status ORDER BY created_at DESC;";
+        var grants = (await connection.QueryAsync<AccessPeerGrant>(sql, new { Status = status })).ToList();
+        return Ok(grants);
+    }
+
     [HttpPost("peer-grants")]
     public async Task<IActionResult> CreatePeerGrant([FromBody] CreatePeerGrantDto dto)
     {

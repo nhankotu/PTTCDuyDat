@@ -19,7 +19,10 @@ export const ImportV2Modal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =
   const [reason, setReason] = useState<string>('Admin nạp dữ liệu định kỳ');
   const [rowResolutions, setRowResolutions] = useState<Record<number, string>>({});
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [filterType, setFilterType] = useState<string>('ALL');
+  const [isDragging, setIsDragging] = useState<boolean>(false);
+  const [awaitingInvalidConfirm, setAwaitingInvalidConfirm] = useState<boolean>(false);
 
   // Keep idempotency key stable for the preview session
   const idempotencyKey = preview ? `confirm_${preview.previewId}_rev${preview.expectedRevision}` : '';
@@ -36,14 +39,29 @@ export const ImportV2Modal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =
 
   if (!isOpen) return null;
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
-      setPreview(null);
-      setErrorMsg(null);
-      setRowResolutions({});
-      setFilterType('ALL');
+  const acceptFile = (picked: File | undefined) => {
+    if (!picked) return;
+    if (!/\.(xlsx|xls)$/i.test(picked.name)) {
+      setErrorMsg('Định dạng file không hợp lệ. Vui lòng chọn file Excel (.xlsx hoặc .xls).');
+      return;
     }
+    setFile(picked);
+    setPreview(null);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+    setAwaitingInvalidConfirm(false);
+    setRowResolutions({});
+    setFilterType('ALL');
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    acceptFile(e.target.files?.[0]);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragging(false);
+    acceptFile(e.dataTransfer.files?.[0]);
   };
 
   const handleUploadPreview = async () => {
@@ -79,15 +97,14 @@ export const ImportV2Modal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =
       return;
     }
 
-    if (preview.invalidRows > 0) {
-      const confirmed = window.confirm(
-        `File Excel có ${preview.invalidRows} dòng lỗi sẽ tự động được BỎ QUA (không nạp).\n\nHệ thống sẽ nạp ${preview.totalRows - preview.invalidRows} dòng hợp lệ vào cơ sở dữ liệu.\n\nBạn có muốn tiếp tục xác nhận nạp không?`
-      );
-      if (!confirmed) return;
+    if (preview.invalidRows > 0 && !awaitingInvalidConfirm) {
+      setAwaitingInvalidConfirm(true);
+      return;
     }
 
     setConfirming(true);
     setErrorMsg(null);
+    setAwaitingInvalidConfirm(false);
 
     try {
       await apiV1.confirmImport(preview.previewId, {
@@ -97,9 +114,12 @@ export const ImportV2Modal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =
         rowResolutions,
       });
 
-      alert(`Đã xác nhận nạp thành công đợt ${preview.batchId} vào hệ thống!`);
+      setSuccessMsg(`Đã xác nhận nạp thành công đợt #${preview.batchId} vào hệ thống!`);
       onSuccess();
-      onClose();
+      setTimeout(() => {
+        setSuccessMsg(null);
+        onClose();
+      }, 1100);
     } catch (err: any) {
       if (err.response?.status === 409 || err.response?.data?.message?.includes('Stale')) {
         setErrorMsg('Dữ liệu đã bị thay đổi (Stale Preview). Vui lòng phân tích lại file.');
@@ -151,6 +171,41 @@ export const ImportV2Modal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =
             </div>
           )}
 
+          {successMsg && (
+            <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3.5 rounded-2xl text-xs font-semibold flex items-center space-x-2">
+              <span className="text-base">✅</span>
+              <span>{successMsg}</span>
+            </div>
+          )}
+
+          {awaitingInvalidConfirm && preview && (
+            <div className="bg-amber-50 border-2 border-amber-300 text-amber-950 p-4 rounded-2xl text-xs flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="font-extrabold">Xác nhận bỏ qua {preview.invalidRows} dòng lỗi?</div>
+                <div className="mt-0.5 text-amber-800">
+                  Hệ thống sẽ nạp <strong>{preview.totalRows - preview.invalidRows}</strong> dòng hợp lệ và tự động bỏ qua {preview.invalidRows} dòng lỗi.
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAwaitingInvalidConfirm(false)}
+                  className="px-3 py-1.5 rounded-lg border border-amber-300 bg-white text-amber-900 font-semibold cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirm}
+                  disabled={confirming}
+                  className="px-3.5 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold cursor-pointer disabled:opacity-50"
+                >
+                  Tiếp tục nạp dữ liệu
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Configuration Form */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200/80">
             <div>
@@ -189,8 +244,17 @@ export const ImportV2Modal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =
             </div>
           </div>
 
-          {/* File Picker */}
-          <div className="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-6 text-center transition-colors bg-white">
+          {/* File Picker with Drag & Drop */}
+          <div
+            onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+            onDragLeave={() => setIsDragging(false)}
+            onDrop={handleDrop}
+            className={`border-2 border-dashed rounded-2xl p-6 text-center transition-colors ${
+              isDragging
+                ? 'border-blue-500 bg-blue-50/70'
+                : 'border-slate-300 hover:border-blue-500 bg-white'
+            }`}
+          >
             <input
               type="file"
               accept=".xlsx,.xls"

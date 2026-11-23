@@ -242,6 +242,16 @@ export const dashboardApi = {
     return res.data;
   },
 
+  changeUserPassword: async (id: number, newPassword: string): Promise<{ message: string }> => {
+    const res = await api.put(`/users/${id}/password`, { newPassword });
+    return res.data;
+  },
+
+  toggleUserStatus: async (id: number): Promise<{ message: string }> => {
+    const res = await api.put(`/users/${id}/toggle-status`);
+    return res.data;
+  },
+
   // Org tree APIs
   getOrgTree: async (): Promise<TreeNode[]> => {
     const res = await api.get('/orgtree');

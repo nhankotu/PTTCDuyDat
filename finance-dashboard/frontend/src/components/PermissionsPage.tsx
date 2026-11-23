@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { dashboardApi } from '../services/api';
 import { UserAccount, TreeFlatNode, PermissionPreset } from '../types';
+import { PeerAccessManager } from './PeerAccessManager';
 
 export const PermissionsPage: React.FC = () => {
+  const [activeSubTab, setActiveSubTab] = useState<'bulk' | 'peer'>('bulk');
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [flatNodes, setFlatNodes] = useState<TreeFlatNode[]>([]);
   const [presets, setPresets] = useState<PermissionPreset[]>([]);
@@ -400,6 +402,33 @@ export const PermissionsPage: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* Sub-navigation tabs */}
+      <div className="inline-flex rounded-xl bg-white p-1 border border-slate-200 shadow-2xs text-xs font-bold">
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('bulk')}
+          className={`px-4 py-2 rounded-lg transition cursor-pointer ${
+            activeSubTab === 'bulk' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          Phân quyền Scope hàng loạt & Bộ quyền mẫu
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveSubTab('peer')}
+          className={`px-4 py-2 rounded-lg transition cursor-pointer ${
+            activeSubTab === 'peer' ? 'bg-purple-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          Duyệt đơn & Quyền ngang hàng (Peer Grants)
+        </button>
+      </div>
+
+      {activeSubTab === 'peer' ? (
+        <PeerAccessManager users={users} flatNodes={flatNodes} />
+      ) : (
+      <>
 
       {/* Status banner */}
       {statusMessage && (
@@ -1098,6 +1127,8 @@ export const PermissionsPage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );
