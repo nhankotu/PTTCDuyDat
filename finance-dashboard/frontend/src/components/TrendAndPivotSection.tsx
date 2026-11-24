@@ -169,6 +169,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({
   const trendOption = {
     animationDuration: 220,
     animationDurationUpdate: 150,
+    textStyle: { fontFamily: "'Be Vietnam Pro', sans-serif" },
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',

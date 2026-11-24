@@ -1,5 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { X } from 'lucide-react';
+import {
+  X, BarChart3, TrendingUp, FileText, Landmark, GitFork, Users, ShieldCheck,
+  Upload, LogOut, Calendar, SlidersHorizontal, RefreshCw, HelpCircle, Database
+} from 'lucide-react';
 import { emptyDimensions, countActiveFilters, normalizeDimensions } from './components/ReportFilterPanel';
 import { SavedReportValue } from './components/SavedReportViews';
 import { UnifiedFilterScopePanel } from './components/UnifiedFilterScopePanel';
@@ -334,154 +337,151 @@ export default function App() {
     .slice(0, 2)
     .toUpperCase();
 
+  const fmtShortDate = (iso: string) => {
+    const parts = iso.split('-');
+    return parts.length === 3 ? `${parts[2]}/${parts[1]}` : iso;
+  };
+  const fmtFullDate = (iso: string) => {
+    const parts = iso.split('-');
+    return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : iso;
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 antialiased font-sans">
-      {/* 1. Top Navigation Bar (Deep Slate Fintech Style) */}
-      <header className="bg-slate-900 border-b border-slate-800 px-4 sm:px-6 py-2.5 flex flex-wrap gap-3 items-center justify-between sticky top-0 z-50 shadow-md">
-        <div className="flex items-center gap-6">
+      {/* 1. Top Navigation Bar (Compact 1-row Fintech Header) */}
+      <header className="bg-slate-900 border-b border-slate-800 px-4 sm:px-5 h-14 flex items-center justify-between gap-3 sticky top-0 z-50 shadow-md">
+        <div className="flex items-center gap-3.5 min-w-0">
           {/* Logo Finra */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 shrink-0">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 flex items-center justify-center font-black text-white text-base shadow-sm ring-1 ring-white/20">
               F
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-lg font-black tracking-tight text-white">
-                Finra
-              </span>
-              <span className="text-[10px] font-bold bg-blue-500/20 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                Báo cáo kinh doanh
-              </span>
-            </div>
+            <span className="text-base font-black tracking-tight text-white">Finra</span>
           </div>
 
-          <div className="h-5 w-px bg-slate-700/80 hidden md:block" />
+          <div className="h-5 w-px bg-slate-700/80 hidden md:block shrink-0" />
 
-          {/* Navigation Tabs */}
-          <nav className="hidden md:flex items-center gap-1 bg-slate-950/70 p-1 rounded-xl border border-slate-800">
+          {/* Compact Navigation Tabs */}
+          <nav className="hidden md:flex items-center gap-0.5 bg-slate-950/70 p-1 rounded-xl border border-slate-800 overflow-x-auto">
             <button
               onClick={() => setActiveTab('kpi_v1')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                 activeTab === 'kpi_v1'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
               }`}
             >
-              <span>📊</span>
-              <span>7 Chỉ Số KPI</span>
+              <BarChart3 size={14} />
+              <span>KPI</span>
             </button>
 
             <button
               onClick={() => setActiveTab('trend_v1')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                 activeTab === 'trend_v1'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
               }`}
             >
-              <span>📈</span>
-              <span>Xu Hướng & Cơ Cấu</span>
+              <TrendingUp size={14} />
+              <span>Xu hướng</span>
             </button>
 
             <button
               onClick={() => setActiveTab('contracts_v1')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                 activeTab === 'contracts_v1'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
               }`}
             >
-              <span>📋</span>
-              <span>Tra Cứu HĐ</span>
+              <FileText size={14} />
+              <span>Hợp đồng</span>
             </button>
 
             <button
               onClick={() => setActiveTab('stocks_v1')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                 activeTab === 'stocks_v1'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
               }`}
             >
-              <span>📜</span>
-              <span>Chứng Khoán</span>
+              <Landmark size={14} />
+              <span>Chứng khoán</span>
             </button>
 
             <button
               onClick={() => setActiveTab('org_tree_v1')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                 activeTab === 'org_tree_v1'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
               }`}
             >
-              <span>🌳</span>
-              <span>Cây Nhân Sự</span>
+              <GitFork size={14} />
+              <span>Nhân sự</span>
             </button>
 
             {isAdmin && (
               <button
                 onClick={() => setActiveTab('users')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                   activeTab === 'users'
                     ? 'bg-amber-600 text-white shadow-xs'
                     : 'text-amber-400/90 hover:text-amber-300 hover:bg-amber-500/10'
                 }`}
               >
-                <span>👥</span>
-                <span>Người Dùng</span>
+                <Users size={14} />
+                <span>Tài khoản</span>
               </button>
             )}
 
             {isAdmin && (
               <button
                 onClick={() => setActiveTab('permissions')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                   activeTab === 'permissions'
                     ? 'bg-purple-600 text-white shadow-xs'
                     : 'text-purple-400/90 hover:text-purple-300 hover:bg-purple-500/10'
                 }`}
               >
-                <span>🔐</span>
-                <span>Phân Quyền Scope</span>
+                <ShieldCheck size={14} />
+                <span>Phân quyền</span>
               </button>
             )}
           </nav>
         </div>
 
         {/* Right controls */}
-        <div className="flex items-center gap-3.5">
+        <div className="flex items-center gap-2.5 shrink-0">
           {isAdmin && (
             <button
               onClick={() => setIsImportV2Open(true)}
-              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold px-3.5 py-1.5 rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer border border-emerald-400/30 hover:scale-[1.02]"
+              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer border border-emerald-400/30"
+              title="Nạp dữ liệu Excel"
             >
-              <span className="text-sm">📥</span>
-              <span>Import Data</span>
+              <Upload size={14} />
+              <span>Import</span>
             </button>
           )}
 
-          {/* User profile & Logout */}
-          <div className="flex items-center gap-3 pl-3 border-l border-slate-800">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-xs text-slate-200 shadow-inner">
-                {userInitials}
-              </div>
-              <div className="text-right hidden sm:block">
-                <div className="text-xs font-bold text-white leading-tight">
-                  {currentUser.fullName || currentUser.username}
-                </div>
-                <div className="text-[10px] font-semibold text-slate-400">
-                  {isAdmin ? 'Quản trị viên' : `Nhân viên ${currentUser.branchAccess || ''}`}
-                </div>
-              </div>
+          {/* Compact User Avatar & Logout */}
+          <div className="flex items-center gap-2 pl-2.5 border-l border-slate-800">
+            <div
+              className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-xs text-slate-200 shadow-inner cursor-default"
+              title={`${currentUser.fullName || currentUser.username} · ${isAdmin ? 'Quản trị viên' : (currentUser.branchAccess || 'Nhân viên')}`}
+            >
+              {userInitials}
             </div>
 
             <button
               onClick={handleLogout}
-              className="text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-slate-700/80 hover:border-rose-500/30 rounded-lg px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer"
-              title="Đăng xuất khỏi hệ thống"
+              className="text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-slate-700/80 hover:border-rose-500/30 rounded-lg p-1.5 transition-all cursor-pointer"
+              title="Đăng xuất"
+              aria-label="Đăng xuất"
             >
-              Đăng xuất
+              <LogOut size={15} />
             </button>
           </div>
         </div>
@@ -524,23 +524,12 @@ export default function App() {
               </button>
             </div>
           )}
-          {(fromDate !== applied.fromDate || toDate !== applied.toDate || asOfDate !== applied.asOfDate || selectedDatasetId !== applied.datasetId) && <p role="status" className="text-sm text-amber-800">Bộ lọc có thay đổi chưa áp dụng. Bấm “Áp dụng” để cập nhật báo cáo.</p>}
-          <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
-            <span>
-              Kỳ đã áp dụng: {applied.fromDate} → {applied.toDate} · Chốt số dư: {applied.asOfDate}
-              {dateCoverage?.minDate && dateCoverage?.maxDate && (
-                <span className="ml-2 text-xs text-slate-500">
-                  (Dữ liệu hiện có: <strong>{dateCoverage.minDate}</strong> → <strong>{dateCoverage.maxDate}</strong> · {dateCoverage.totalContracts} HĐ)
-                </span>
-              )}
-            </span>
-            <div className="flex items-center gap-2 shrink-0">
-              <button onClick={() => setFilterModalTab('all')} className="text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-2.5 py-1 rounded-lg font-bold cursor-pointer">
-                🎛️ Mở Bộ lọc & Phạm vi (F)
-              </button>
-              <button onClick={() => setRefreshKey(n => n + 1)} className="text-blue-700 font-semibold cursor-pointer">Làm mới dữ liệu</button>
+          {(fromDate !== applied.fromDate || toDate !== applied.toDate || asOfDate !== applied.asOfDate || selectedDatasetId !== applied.datasetId) && (
+            <div role="status" className="flex items-center justify-between gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-900 font-medium">
+              <span>Bộ lọc có thay đổi chưa áp dụng.</span>
+              <button onClick={applyFilters} className="px-2.5 py-1 rounded-lg bg-amber-600 text-white font-bold cursor-pointer">Áp dụng</button>
             </div>
-          </div>
+          )}
 
           {/* Quick Smart Rules & Active Filter Chips Bar */}
           {['kpi_v1', 'trend_v1', 'contracts_v1'].includes(activeTab) && (() => {
@@ -742,88 +731,93 @@ export default function App() {
           JSON.stringify(dimensions) !== JSON.stringify(appliedDimensions);
 
         return (
-          <footer className="sticky bottom-0 z-40 w-full bg-[#0b1120]/95 backdrop-blur-md border-t border-slate-800 text-white px-4 sm:px-6 py-2 shadow-[0_-4px_20px_rgba(15,23,42,0.18)]">
+          <footer className="sticky bottom-0 z-40 w-full bg-[#0b1120]/95 backdrop-blur-md border-t border-slate-800 text-white px-4 sm:px-5 py-2 shadow-[0_-4px_20px_rgba(15,23,42,0.18)]">
             <div className="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-2 text-xs">
-              <div className="hidden lg:flex items-center gap-2 text-slate-400">
-                <span className="font-semibold text-slate-300">Thanh tác vụ lọc</span>
-                <span>·</span>
-                <span>Chốt số dư: <strong className="text-emerald-400">{applied.asOfDate}</strong></span>
+              <div className="hidden lg:flex items-center gap-2.5 text-slate-400">
+                <span className="inline-flex items-center gap-1.5">
+                  <Landmark size={13} className="text-emerald-400" />
+                  <span>Chốt: <strong className="text-emerald-400 tabular-nums">{fmtFullDate(applied.asOfDate)}</strong></span>
+                </span>
                 {dateCoverage?.minDate && dateCoverage?.maxDate && (
-                  <>
-                    <span>·</span>
-                    <span>DL có sẵn: <strong className="text-slate-200">{dateCoverage.minDate} → {dateCoverage.maxDate}</strong></span>
-                  </>
+                  <span
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-800/80 border border-slate-700/70 text-slate-300 font-semibold tabular-nums cursor-default"
+                    title={`Dữ liệu có sẵn: ${fmtFullDate(dateCoverage.minDate)} → ${fmtFullDate(dateCoverage.maxDate)}`}
+                  >
+                    <Database size={12} className="text-slate-400" />
+                    <span>{dateCoverage.totalContracts.toLocaleString('vi-VN')} HĐ</span>
+                  </span>
                 )}
               </div>
 
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 ml-auto mr-auto lg:mr-0">
-              <button
-                type="button"
-                onClick={() => setFilterModalTab('time')}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700/80 text-slate-100 font-semibold transition cursor-pointer"
-                title="Mở cài đặt Thời gian & Bản chốt (Phím T)"
-              >
-                <span>📅</span>
-                <span className="truncate max-w-[170px] sm:max-w-none">{applied.fromDate} → {applied.toDate}</span>
-                <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono bg-slate-700 text-slate-300 rounded">T</kbd>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setFilterModalTab('scope')}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700/80 text-slate-100 font-semibold transition cursor-pointer"
-                title="Mở cài đặt Phạm vi nhân sự & Sale HĐ (Phím S)"
-              >
-                <span>👥</span>
-                <span className="truncate max-w-[160px] sm:max-w-[220px]">
-                  {selectedNode
-                    ? `${selectedNode.label} (${selectedNode.source === 'CONTRACT' ? 'Sale HĐ' : reportView.view === 'subtree' ? 'Cả CN' : 'Cá nhân'})`
-                    : (isAdmin ? 'Toàn hệ thống' : 'Phạm vi của tôi')}
-                </span>
-                <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono bg-slate-700 text-slate-300 rounded">S</kbd>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setFilterModalTab('all')}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition cursor-pointer shadow-xs"
-                title="Mở cửa sổ Setup Bộ lọc & Phạm vi đầy đủ (Phím F)"
-              >
-                <span>🎛️ Bộ lọc{dimCount > 0 ? ` (${dimCount})` : ''}</span>
-                <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono bg-blue-700 text-blue-100 rounded">F</kbd>
-              </button>
-
-              {hasPending && (
                 <button
                   type="button"
-                  onClick={applyFilters}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition cursor-pointer animate-pulse"
+                  onClick={() => setFilterModalTab('time')}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700/80 text-slate-100 font-semibold transition cursor-pointer tabular-nums"
+                  title={`Kỳ: ${applied.fromDate} → ${applied.toDate} (Phím T)`}
                 >
-                  <span>🔄 Áp dụng</span>
+                  <Calendar size={13} className="text-blue-400" />
+                  <span>{fmtShortDate(applied.fromDate)} → {fmtShortDate(applied.toDate)}</span>
+                  <kbd className="hidden sm:inline-block px-1 py-0.5 text-[10px] font-mono bg-slate-700 text-slate-300 rounded">T</kbd>
                 </button>
-              )}
 
-              <button
-                type="button"
-                onClick={() => setRefreshKey(n => n + 1)}
-                className="inline-flex items-center justify-center px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700/80 text-slate-200 transition cursor-pointer"
-                title="Làm mới dữ liệu"
-                aria-label="Làm mới dữ liệu"
-              >
-                {kpiLoading ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : '↻'}
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterModalTab('scope')}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700/80 text-slate-100 font-semibold transition cursor-pointer"
+                  title="Phạm vi nhân sự (Phím S)"
+                >
+                  <Users size={13} className="text-purple-400" />
+                  <span className="truncate max-w-[150px] sm:max-w-[200px]">
+                    {selectedNode
+                      ? `${selectedNode.label} (${selectedNode.source === 'CONTRACT' ? 'Sale HĐ' : reportView.view === 'subtree' ? 'Cả CN' : 'Cá nhân'})`
+                      : (isAdmin ? 'Toàn hệ thống' : 'Phạm vi của tôi')}
+                  </span>
+                  <kbd className="hidden sm:inline-block px-1 py-0.5 text-[10px] font-mono bg-slate-700 text-slate-300 rounded">S</kbd>
+                </button>
 
-              <button
-                type="button"
-                onClick={() => setHelpOpen(true)}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700/80 text-slate-200 font-semibold transition cursor-pointer"
-                title="Hướng dẫn sử dụng & Phím tắt (Phím H hoặc ?)"
-                aria-label="Hướng dẫn sử dụng"
-              >
-                <span>❓</span>
-                <span className="hidden md:inline">Hướng dẫn</span>
-                <kbd className="hidden sm:inline-block px-1.5 py-0.5 text-[10px] font-mono bg-slate-700 text-slate-300 rounded">H</kbd>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => setFilterModalTab('all')}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition cursor-pointer shadow-xs"
+                  title="Bộ lọc & Phạm vi (Phím F)"
+                >
+                  <SlidersHorizontal size={13} />
+                  <span>Lọc{dimCount > 0 ? ` (${dimCount})` : ''}</span>
+                  <kbd className="hidden sm:inline-block px-1 py-0.5 text-[10px] font-mono bg-blue-700 text-blue-100 rounded">F</kbd>
+                </button>
+
+                {hasPending && (
+                  <button
+                    type="button"
+                    onClick={applyFilters}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition cursor-pointer animate-pulse"
+                  >
+                    <RefreshCw size={12} />
+                    <span>Áp dụng</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setRefreshKey(n => n + 1)}
+                  className="inline-flex items-center justify-center p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700/80 text-slate-200 transition cursor-pointer"
+                  title="Làm mới dữ liệu"
+                  aria-label="Làm mới dữ liệu"
+                >
+                  <RefreshCw size={14} className={kpiLoading ? 'animate-spin' : ''} />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setHelpOpen(true)}
+                  className="inline-flex items-center gap-1 px-2 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700/80 text-slate-200 font-semibold transition cursor-pointer"
+                  title="Hướng dẫn & Phím tắt (Phím H)"
+                  aria-label="Hướng dẫn sử dụng"
+                >
+                  <HelpCircle size={14} className="text-slate-300" />
+                  <kbd className="hidden sm:inline-block px-1 py-0.5 text-[10px] font-mono bg-slate-700 text-slate-300 rounded">H</kbd>
+                </button>
               </div>
             </div>
           </footer>
