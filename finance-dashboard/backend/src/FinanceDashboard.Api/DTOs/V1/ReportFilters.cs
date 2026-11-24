@@ -21,9 +21,19 @@ public class ReportFilters
 
     // Smart business rule toggles
     public bool ExcludeTenDays { get; set; } = false;
+    /// <summary>
+    /// Early liquidation exclusion threshold in days: 0 = off, 5 = exclude <= 5 days (default), 10 = exclude <= 10 days.
+    /// Null falls back to 10 if ExcludeTenDays is true, otherwise 5.
+    /// </summary>
+    public int? EarlyLiquidationMaxDays { get; set; }
     public bool ExcludeSafeNewCust { get; set; } = false;
     public bool ExcludeGhost { get; set; } = false;
     public string GhostFilter { get; set; } = "all"; // all, only_ghost, non_ghost
+
+    public int ResolvedEarlyLiquidationMaxDays =>
+        EarlyLiquidationMaxDays.HasValue
+            ? EarlyLiquidationMaxDays.Value
+            : (ExcludeTenDays ? 10 : 5);
 
     public void Validate(bool contracts = false)
     {
@@ -31,6 +41,8 @@ public class ReportFilters
             MinValue < 0 || MaxValue < 0 || MinBalance < 0 || MaxBalance < 0 ||
             (Search?.Length ?? 0) > 200 || Products.Length + Terms.Length + Channels.Length + Statuses.Length > 200)
             throw new ScopeAccessException(400, "INVALID_FILTER", "Khoảng tiền hoặc số lượng điều kiện lọc không hợp lệ.");
+        if (EarlyLiquidationMaxDays.HasValue && EarlyLiquidationMaxDays.Value is not (0 or 5 or 10))
+            throw new ScopeAccessException(400, "INVALID_EARLY_DAYS", "Ngưỡng loại trừ thanh lý sớm chỉ hỗ trợ 0, 5 hoặc 10 ngày.");
         if (GhostFilter is not ("all" or "only_ghost" or "non_ghost"))
             throw new ScopeAccessException(400, "INVALID_GHOST_FILTER", "Bộ lọc hợp đồng ma không hợp lệ.");
         if (!contracts && (Search != null || MinValue != null || MaxValue != null || MinBalance != null || MaxBalance != null || ChangedSale != null || GhostFilter != "all"))
@@ -58,11 +70,24 @@ public class ReportFilters
         AND ((@MinValue::numeric IS NULL AND @MaxValue::numeric IS NULL) OR @FilterAll
              OR COALESCE(e.new_sale_id, c.sale_id) = ANY(@FilterRevenueScope))";
 
-    public static string SettledExpr(string rc = "rc", string s = "s") =>
-        $"(CASE WHEN {rc}.liquidate_date IS NULL OR {rc}.liquidate_date <= @AsOfDate THEN GREATEST(COALESCE({s}.total_settled, 0), COALESCE({rc}.liquidated_amount, 0)) ELSE COALESCE({s}.total_settled, 0) END)";
+    public static string SettledExpr(string rc = "rc", string s = "s", string asOfParam = "@AsOfDate") =>
+        $@"(CASE
+            WHEN COALESCE({s}.total_settled, 0) > 0 THEN
+                CASE
+                    WHEN {rc}.liquidate_date IS NOT NULL AND {rc}.liquidate_date <= {asOfParam}
+                        THEN GREATEST({s}.total_settled, COALESCE({rc}.liquidated_amount, 0))
+                    ELSE {s}.total_settled
+                END
+            WHEN {rc}.liquidate_date IS NOT NULL AND {rc}.liquidate_date <= {asOfParam}
+                THEN COALESCE({rc}.liquidated_amount, 0)
+            WHEN {rc}.liquidate_date IS NULL AND {rc}.status = 'LIQUIDATED' AND COALESCE({rc}.liquidated_amount, 0) > 0
+                 AND {asOfParam} >= COALESCE({rc}.expire_date, {rc}.valid_from)
+                THEN COALESCE({rc}.liquidated_amount, 0)
+            ELSE 0
+        END)";
 
-    public static string BalanceExpr(string rc = "rc", string s = "s") =>
-        $"GREATEST(0, {rc}.contract_value - {SettledExpr(rc, s)})";
+    public static string BalanceExpr(string rc = "rc", string s = "s", string asOfParam = "@AsOfDate") =>
+        $"GREATEST(0, {rc}.contract_value - {SettledExpr(rc, s, asOfParam)})";
 
     public static string BalanceClause => $@"
         WHERE (NOT @OnlyPositiveBalance OR {BalanceExpr("r", "s")} > 0)
@@ -83,6 +108,7 @@ public class ReportFilters
         args.Add("SortByValue", Sort.StartsWith("value_", StringComparison.Ordinal));
         args.Add("FilterRevenueScope", scope.RevenueScope.ToArray()); args.Add("FilterBalanceScope", scope.BalanceScope.ToArray());
         args.Add("ExcludeTenDays", ExcludeTenDays);
+        args.Add("EarlyLiquidationMaxDays", ResolvedEarlyLiquidationMaxDays);
         args.Add("ExcludeSafeNewCust", ExcludeSafeNewCust);
         args.Add("ExcludeGhost", ExcludeGhost);
         args.Add("GhostFilter", GhostFilter);

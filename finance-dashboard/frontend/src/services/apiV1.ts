@@ -49,6 +49,7 @@ export const apiV1 = {
   getPivot: async (params: Partial<DimensionFilters> & {
     fromDate?: string;
     toDate?: string;
+    asOfDate?: string;
     groupBy?: 'product' | 'term' | 'channel' | 'branch' | 'sale';
     employeeId?: string;
     datasetId?: string;
@@ -122,6 +123,13 @@ export const apiV1 = {
 
   unmarkGhostContract: async (appendixNumber: string): Promise<void> => {
     await api.post('/v1/contracts/unmark-ghost', { appendixNumber });
+  },
+
+  getGhostRegistry: async (search?: string): Promise<import('../types/v1').GhostRegistryItem[]> => {
+    const { data } = await api.get('/v1/contracts/ghost-registry', {
+      params: search ? { search } : {},
+    });
+    return data;
   },
 
   exportContractsUrl: (params: {

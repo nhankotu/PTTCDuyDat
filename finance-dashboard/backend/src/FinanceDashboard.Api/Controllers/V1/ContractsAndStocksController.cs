@@ -221,6 +221,13 @@ public class ContractsV1Controller : ControllerBase
         return File(bytes, "application/vnd.ms-excel; charset=utf-8", $"Hop_Dong_{start:yyyyMMdd}_{end:yyyyMMdd}.xls");
     }
 
+    [HttpGet("ghost-registry")]
+    public async Task<IActionResult> GetGhostRegistry([FromQuery] string? search)
+    {
+        var items = await _reportingService.GetGhostRegistryAsync(search);
+        return Ok(items);
+    }
+
     [HttpPost("mark-ghost")]
     public async Task<IActionResult> MarkGhost([FromBody] GhostContractRequest req)
     {

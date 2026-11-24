@@ -7,6 +7,7 @@ import { TrendPoint, PivotItem } from '../types/v1';
 interface Props extends ReportView, DimensionFilters {
   fromDate: string;
   toDate: string;
+  asOfDate?: string;
   datasetId?: string;
   refreshKey?: number;
   compact?: boolean;
@@ -30,6 +31,7 @@ function calcBalanceMax(value: { min: number; max: number }): number {
 export const TrendAndPivotSection: React.FC<Props> = ({
   fromDate,
   toDate,
+  asOfDate,
   datasetId,
   refreshKey,
   viewEmployeeId,
@@ -39,6 +41,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({
   channels,
   statuses,
   excludeTenDays,
+  earlyLiquidationMaxDays,
   excludeSafeNewCust,
   excludeGhost,
   compact,
@@ -102,7 +105,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({
     setIsWeekModalOpen(false);
   };
 
-  const dimsKey = JSON.stringify([products, terms, channels, statuses, !!excludeTenDays, !!excludeSafeNewCust, !!excludeGhost]);
+  const dimsKey = JSON.stringify([products, terms, channels, statuses, !!excludeTenDays, earlyLiquidationMaxDays ?? 5, !!excludeSafeNewCust, !!excludeGhost]);
 
   useEffect(() => {
     let active = true;
@@ -112,6 +115,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({
         const sharedParams = {
           fromDate,
           toDate,
+          asOfDate: asOfDate || toDate,
           datasetId,
           viewEmployeeId,
           view,
@@ -120,21 +124,24 @@ export const TrendAndPivotSection: React.FC<Props> = ({
           channels,
           statuses,
           excludeTenDays,
+          earlyLiquidationMaxDays: earlyLiquidationMaxDays ?? 5,
           excludeSafeNewCust,
           excludeGhost,
         };
-        const [trendRes, pivotRes] = await Promise.all([
-          apiV1.getTrend({
-            ...sharedParams,
-            period,
-            weekMode: period === 'week' ? weekMode : undefined,
-            customIntervalsJson: period === 'week' && weekMode === 'custom' ? JSON.stringify(customIntervals) : undefined,
-          }),
-          apiV1.getPivot({ ...sharedParams, groupBy }),
-        ]);
+        const trendPromise = apiV1.getTrend({
+          ...sharedParams,
+          period,
+          weekMode: period === 'week' ? weekMode : undefined,
+          customIntervalsJson: period === 'week' && weekMode === 'custom' ? JSON.stringify(customIntervals) : undefined,
+        });
+        // Skip getPivot in compact mode to cut Render Free DB load by 50%
+        const pivotPromise = compact
+          ? Promise.resolve<PivotItem[]>([])
+          : apiV1.getPivot({ ...sharedParams, groupBy });
+        const [trendRes, pivotRes] = await Promise.all([trendPromise, pivotPromise]);
         if (!active) return;
         setTrendData(trendRes);
-        setPivotData(pivotRes);
+        if (!compact) setPivotData(pivotRes);
       } catch (err: any) {
         if (active) setError(err.response?.data?.message || 'Không tải được phân tích. Vui lòng thử lại.');
       } finally {
@@ -144,7 +151,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({
 
     fetchData();
     return () => { active = false; };
-  }, [fromDate, toDate, period, groupBy, datasetId, weekMode, customIntervals, viewEmployeeId, view, dimsKey, revision, refreshKey]);
+  }, [fromDate, toDate, asOfDate, period, groupBy, datasetId, weekMode, customIntervals, viewEmployeeId, view, dimsKey, compact, revision, refreshKey]);
 
   const numericBalances = trendData
     .map(t => (t.totalBalance === null ? NaN : parseFloat(t.totalBalance)))
@@ -158,8 +165,10 @@ export const TrendAndPivotSection: React.FC<Props> = ({
     return `${(v / 1e6).toFixed(0)} Tr`;
   };
 
-  // ECharts Trend Option with modern aesthetics
+  // ECharts Trend Option with fast rendering & null-safe tooltip
   const trendOption = {
+    animationDuration: 220,
+    animationDurationUpdate: 150,
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
@@ -172,7 +181,9 @@ export const TrendAndPivotSection: React.FC<Props> = ({
       formatter: (params: any) => {
         let res = `<div style="font-weight:700;margin-bottom:6px;color:#94a3b8">${params[0]?.axisValue || ''}</div>`;
         params.forEach((item: any) => {
-          const val = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(item.value || 0);
+          const val = item.value === null || item.value === undefined
+            ? 'Không có quyền'
+            : new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(item.value);
           res += `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin:4px 0;">
             <span style="display:inline-flex;align-items:center;gap:6px;">
               <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${item.color}"></span>

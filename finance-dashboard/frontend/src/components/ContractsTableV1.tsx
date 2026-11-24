@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { Download, Search, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, Search, X, ChevronLeft, ChevronRight, Ghost } from 'lucide-react';
 import { apiV1 } from '../services/apiV1';
 import { ContractDetailItem, ContractFilters, DimensionFilters, ReportView } from '../types/v1';
+import { GhostRegistryModal } from './GhostRegistryModal';
 
 interface Props extends ReportView, DimensionFilters {
   fromDate: string;
@@ -23,7 +24,7 @@ export function ContractsTableV1(props: Props) {
   const {
     fromDate, toDate, datasetId, asOfDate, basis = 'sales',
     viewEmployeeId, view, products, terms, channels, statuses: dimStatuses,
-    excludeTenDays, excludeSafeNewCust, excludeGhost,
+    excludeTenDays, earlyLiquidationMaxDays, excludeSafeNewCust, excludeGhost,
     isAdmin = false, refreshKey = 0, onBasisChange, onGhostToggled,
   } = props;
 
@@ -40,6 +41,7 @@ export function ContractsTableV1(props: Props) {
   const [revision, setRevision] = useState(0);
   const [detail, setDetail] = useState<ContractDetailItem | null>(null);
   const [showSales, setShowSales] = useState(true);
+  const [ghostRegistryOpen, setGhostRegistryOpen] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
 
   const apiBaseParams = {
@@ -55,10 +57,11 @@ export function ContractsTableV1(props: Props) {
     channels,
     statuses: dimStatuses,
     excludeTenDays,
+    earlyLiquidationMaxDays: earlyLiquidationMaxDays ?? 5,
     excludeSafeNewCust,
     excludeGhost,
   };
-  const globalKey = JSON.stringify([fromDate, toDate, datasetId, asOfDate, basis, viewEmployeeId, view, products, terms, channels, dimStatuses, !!excludeTenDays, !!excludeSafeNewCust, !!excludeGhost]);
+  const globalKey = JSON.stringify([fromDate, toDate, datasetId, asOfDate, basis, viewEmployeeId, view, products, terms, channels, dimStatuses, !!excludeTenDays, earlyLiquidationMaxDays ?? 5, !!excludeSafeNewCust, !!excludeGhost]);
   const prevGlobalKeyRef = useRef(globalKey);
 
   useEffect(() => {
@@ -157,6 +160,14 @@ export function ContractsTableV1(props: Props) {
               </button>
             </div>
           )}
+          <button
+            type="button"
+            onClick={() => setGhostRegistryOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 text-xs font-bold cursor-pointer transition"
+            title="Tra cứu sổ lưu trữ vĩnh viễn Hợp đồng ma"
+          >
+            <Ghost size={14} /> Sổ HĐ ma
+          </button>
         </div>
         <p className="text-sm text-slate-500">{basis === 'balance' ? `Danh sách các hợp đồng đang còn số dư (> 0 đ) tại ngày ${asOfDate || toDate}, gồm cả hợp đồng ký trước kỳ.` : 'Hợp đồng phát sinh theo ngày ký trong kỳ. Các hợp đồng ma được tô nền vàng để dễ đối chiếu.'}</p>
       </div>
@@ -253,5 +264,6 @@ export function ContractsTableV1(props: Props) {
       <div className="flex items-center gap-3"><label>Số dòng <select aria-label="Số dòng mỗi trang" className="border rounded-lg p-2" value={pageSize} onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}>{[25, 50, 100].map(n => <option key={n} value={n}>{n}</option>)}</select></label><button aria-label="Trang trước" disabled={page === 1 || loading} onClick={() => setPage(p => p - 1)} className="p-2 border rounded-lg disabled:opacity-40"><ChevronLeft size={18} /></button><button aria-label="Trang sau" disabled={page >= pages || loading} onClick={() => setPage(p => p + 1)} className="p-2 border rounded-lg disabled:opacity-40"><ChevronRight size={18} /></button></div>
     </div>
     {detail && <div className="fixed inset-0 z-50 bg-slate-900/40 flex justify-end" onClick={() => setDetail(null)}><section role="dialog" aria-modal="true" aria-labelledby="contract-title" onClick={e => e.stopPropagation()} className="bg-white w-full max-w-lg p-6 overflow-auto shadow-xl"><div className="flex justify-between items-center"><h3 id="contract-title" className="text-lg font-bold">Hợp đồng {detail.appendixNumber}</h3><button ref={closeRef} onClick={() => setDetail(null)} aria-label="Đóng chi tiết hợp đồng" className="p-2"><X /></button></div><dl className="mt-6 space-y-4">{[['Khách hàng', `${detail.customerName} (${detail.customerCode})`], ['Sản phẩm', detail.productName], ['Kỳ hạn', detail.term], ['Ngày ký', detail.signDate], ['Ngày hết hạn', detail.expireDate || 'Chưa có'], ['Giá trị gốc', money(detail.contractValue)], ['Đã tất toán', money(detail.settledAmount)], ['Số dư', money(detail.balance)], ['Sale thụ hưởng', detail.effectiveSaleId], ['Kênh', detail.channel], ['Trạng thái', statuses[detail.status] || detail.status]].map(([label, value]) => <div key={label} className="border-b pb-3"><dt className="text-sm text-slate-500">{label}</dt><dd className="mt-1 font-medium text-slate-900">{value}</dd></div>)}</dl></section></div>}
+    <GhostRegistryModal isOpen={ghostRegistryOpen} onClose={() => setGhostRegistryOpen(false)} />
   </section>;
 }

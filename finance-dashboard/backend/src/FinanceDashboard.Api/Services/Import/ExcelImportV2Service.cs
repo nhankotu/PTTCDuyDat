@@ -12,11 +12,13 @@ public class ExcelImportV2Service
 {
     private readonly DbConnectionFactory _db;
     private readonly ILogger<ExcelImportV2Service> _logger;
+    private readonly Reporting.ReportCacheService _cache;
 
-    public ExcelImportV2Service(DbConnectionFactory db, ILogger<ExcelImportV2Service> logger)
+    public ExcelImportV2Service(DbConnectionFactory db, ILogger<ExcelImportV2Service> logger, Reporting.ReportCacheService cache)
     {
         _db = db;
         _logger = logger;
+        _cache = cache;
     }
 
     public static string NormalizeStatus(string? rawStatus)
@@ -447,6 +449,7 @@ public class ExcelImportV2Service
             if (batch.Status == "CONFIRMED")
             {
                 transaction.Commit();
+            _cache.InvalidateAll();
                 return new ImportConfirmResponse
                 {
                     BatchId = batch.Id,
@@ -467,6 +470,7 @@ public class ExcelImportV2Service
             if (existingAudit != null)
             {
                 transaction.Commit();
+            _cache.InvalidateAll();
                 return new ImportConfirmResponse
                 {
                     BatchId = existingAudit.BatchId,
@@ -570,6 +574,7 @@ public class ExcelImportV2Service
                 }, transaction: transaction);
 
             transaction.Commit();
+            _cache.InvalidateAll();
 
             return new ImportConfirmResponse
             {
@@ -979,8 +984,8 @@ public class ExcelImportV2Service
 
                 case "GHOST":
                     var existingGhost = await connection.ExecuteScalarAsync<int>(@"
-                        SELECT COUNT(1) FROM excluded_contract
-                        WHERE UPPER(TRIM(appendix_number)) = UPPER(TRIM(@Key));",
+                        SELECT COUNT(1) FROM ghost_contract_registry
+                        WHERE appendix_number_norm = UPPER(TRIM(@Key));",
                         new { Key = stg.EntityKey });
                     if (existingGhost > 0)
                     {
@@ -1031,50 +1036,95 @@ public class ExcelImportV2Service
 
                 if (existingApp != null)
                 {
-                    // Close old active version with valid_to = effDate
-                    await connection.ExecuteAsync(@"
-                        UPDATE contract_appendix_version 
-                        SET is_active_version = FALSE, valid_to = @EffDate
-                        WHERE id = @OldId;",
-                        new { EffDate = effDate, OldId = existingApp.Id }, transaction);
+                    if (effDate <= existingApp.ValidFrom)
+                    {
+                        // Guard against empty valid_from >= valid_to intervals when re-importing with same/earlier effective date
+                        await connection.ExecuteAsync(@"
+                            UPDATE contract_appendix_version SET
+                                customer_code = @CustomerCode,
+                                customer_name = @CustomerName,
+                                product_name = @ProductName,
+                                term = @Term,
+                                contract_value = @ContractValue,
+                                liquidated_amount = @LiquidatedAmount,
+                                sign_date = @SignDate,
+                                expire_date = @ExpireDate,
+                                liquidate_date = @LiquidateDate,
+                                sale_id = @SaleId,
+                                sale_name = @SaleName,
+                                status = @Status,
+                                channel = @Channel,
+                                batch_id = @BatchId,
+                                valid_from = LEAST(valid_from, @SignDate),
+                                fingerprint = @Fingerprint
+                            WHERE id = @OldId;",
+                            new
+                            {
+                                OldId = existingApp.Id,
+                                CustomerCode = GetStr("customer_code"),
+                                CustomerName = GetStr("customer_name"),
+                                ProductName = GetStr("product_name"),
+                                Term = GetStr("term"),
+                                ContractValue = GetDec("contract_value"),
+                                LiquidatedAmount = GetDec("liquidated_amount"),
+                                SignDate = signDate,
+                                ExpireDate = GetDate("expire_date"),
+                                LiquidateDate = GetDate("liquidate_date"),
+                                SaleId = GetStr("sale_id"),
+                                SaleName = GetStr("sale_name"),
+                                Status = GetStr("status"),
+                                Channel = GetStr("channel"),
+                                BatchId = batch.Id,
+                                Fingerprint = stg.Fingerprint
+                            }, transaction);
+                    }
+                    else
+                    {
+                        // Close old active version with valid_to = effDate
+                        await connection.ExecuteAsync(@"
+                            UPDATE contract_appendix_version 
+                            SET is_active_version = FALSE, valid_to = @EffDate
+                            WHERE id = @OldId;",
+                            new { EffDate = effDate, OldId = existingApp.Id }, transaction);
 
-                    // Insert new version with SAME entity_id and incremented version_num
-                    await connection.ExecuteAsync(@"
-                        INSERT INTO contract_appendix_version (
-                            entity_id, appendix_number, customer_code, customer_name,
-                            product_name, term, contract_value, liquidated_amount,
-                            sign_date, expire_date, liquidate_date, sale_id, sale_name,
-                            status, channel, batch_id, version_num, valid_from, valid_to,
-                            fingerprint, is_active_version, created_at
-                        ) VALUES (
-                            @EntityId, @AppendixNumber, @CustomerCode, @CustomerName,
-                            @ProductName, @Term, @ContractValue, @LiquidatedAmount,
-                            @SignDate, @ExpireDate, @LiquidateDate, @SaleId, @SaleName,
-                            @Status, @Channel, @BatchId, @VersionNum, @ValidFrom, '9999-12-31',
-                            @Fingerprint, TRUE, now()
-                        );",
-                        new
-                        {
-                            EntityId = existingApp.EntityId,
-                            AppendixNumber = appNum,
-                            CustomerCode = GetStr("customer_code"),
-                            CustomerName = GetStr("customer_name"),
-                            ProductName = GetStr("product_name"),
-                            Term = GetStr("term"),
-                            ContractValue = GetDec("contract_value"),
-                            LiquidatedAmount = GetDec("liquidated_amount"),
-                            SignDate = signDate,
-                            ExpireDate = GetDate("expire_date"),
-                            LiquidateDate = GetDate("liquidate_date"),
-                            SaleId = GetStr("sale_id"),
-                            SaleName = GetStr("sale_name"),
-                            Status = GetStr("status"),
-                            Channel = GetStr("channel"),
-                            BatchId = batch.Id,
-                            VersionNum = existingApp.VersionNum + 1,
-                            ValidFrom = effDate,
-                            Fingerprint = stg.Fingerprint
-                        }, transaction);
+                        // Insert new version with SAME entity_id and incremented version_num
+                        await connection.ExecuteAsync(@"
+                            INSERT INTO contract_appendix_version (
+                                entity_id, appendix_number, customer_code, customer_name,
+                                product_name, term, contract_value, liquidated_amount,
+                                sign_date, expire_date, liquidate_date, sale_id, sale_name,
+                                status, channel, batch_id, version_num, valid_from, valid_to,
+                                fingerprint, is_active_version, created_at
+                            ) VALUES (
+                                @EntityId, @AppendixNumber, @CustomerCode, @CustomerName,
+                                @ProductName, @Term, @ContractValue, @LiquidatedAmount,
+                                @SignDate, @ExpireDate, @LiquidateDate, @SaleId, @SaleName,
+                                @Status, @Channel, @BatchId, @VersionNum, @ValidFrom, '9999-12-31',
+                                @Fingerprint, TRUE, now()
+                            );",
+                            new
+                            {
+                                EntityId = existingApp.EntityId,
+                                AppendixNumber = appNum,
+                                CustomerCode = GetStr("customer_code"),
+                                CustomerName = GetStr("customer_name"),
+                                ProductName = GetStr("product_name"),
+                                Term = GetStr("term"),
+                                ContractValue = GetDec("contract_value"),
+                                LiquidatedAmount = GetDec("liquidated_amount"),
+                                SignDate = signDate,
+                                ExpireDate = GetDate("expire_date"),
+                                LiquidateDate = GetDate("liquidate_date"),
+                                SaleId = GetStr("sale_id"),
+                                SaleName = GetStr("sale_name"),
+                                Status = GetStr("status"),
+                                Channel = GetStr("channel"),
+                                BatchId = batch.Id,
+                                VersionNum = existingApp.VersionNum + 1,
+                                ValidFrom = effDate,
+                                Fingerprint = stg.Fingerprint
+                            }, transaction);
+                    }
                 }
                 else
                 {
@@ -1274,6 +1324,12 @@ public class ExcelImportV2Service
 
             case "EXCEPTION":
                 var excAppNum = GetStr("appendix_number");
+                var excSignDate = GetDate("sign_date") ?? await connection.QueryFirstOrDefaultAsync<DateOnly?>(@"
+                    SELECT sign_date FROM contract_appendix_version
+                    WHERE appendix_number = @AppNum ORDER BY version_num DESC LIMIT 1;",
+                    new { AppNum = excAppNum }, transaction);
+                var excEffDate = excSignDate ?? new DateOnly(2000, 1, 1);
+
                 await connection.ExecuteAsync(@"
                     UPDATE contract_exception_version SET is_active_version = FALSE
                     WHERE appendix_number = @AppNum AND is_active_version = TRUE;",
@@ -1294,7 +1350,7 @@ public class ExcelImportV2Service
                         AppendixNumber = excAppNum,
                         NewSaleId = GetStr("new_sale_id"),
                         OriginalSaleId = GetStr("sale_id"),
-                        EffectiveDate = batch.EffectiveDate ?? DateOnly.FromDateTime(DateTime.Today),
+                        EffectiveDate = excEffDate,
                         ExpireDate = GetDate("expire_date"),
                         BatchId = batch.Id
                     }, transaction);
@@ -1346,13 +1402,44 @@ public class ExcelImportV2Service
                 var ghostKey = GetStr("appendix_number").Trim();
                 if (!string.IsNullOrEmpty(ghostKey))
                 {
+                    var ghostNorm = ghostKey.ToUpperInvariant();
                     await connection.ExecuteAsync(@"
+                        INSERT INTO ghost_contract_registry (
+                            appendix_number, appendix_number_norm, customer_code, customer_name,
+                            product_name, contract_value, sign_date, sale_id,
+                            source_file_name, source_batch_id, marked_by, marked_at, is_locked
+                        )
+                        SELECT
+                            @AppNo, @Norm,
+                            COALESCE(NULLIF(@CustCode, ''), ca.customer_code),
+                            COALESCE(NULLIF(@CustName, ''), ca.customer_name),
+                            ca.product_name, ca.contract_value, ca.sign_date, ca.sale_id,
+                            @FileName, @BatchId, @MarkedBy, now(), TRUE
+                        FROM (SELECT 1) dummy
+                        LEFT JOIN LATERAL (
+                            SELECT customer_code, customer_name, product_name, contract_value, sign_date, sale_id
+                            FROM contract_appendix_version c
+                            WHERE UPPER(TRIM(c.appendix_number)) = @Norm
+                            ORDER BY c.version_num DESC
+                            LIMIT 1
+                        ) ca ON TRUE
+                        ON CONFLICT (appendix_number_norm) DO NOTHING;
+
                         INSERT INTO excluded_contract (batch_id, source_batch_id, appendix_number, marked_by, marked_at)
                         SELECT NULL, @BatchId, @AppNo, @MarkedBy, now()
                         WHERE NOT EXISTS (
-                            SELECT 1 FROM excluded_contract WHERE UPPER(TRIM(appendix_number)) = UPPER(@AppNo)
+                            SELECT 1 FROM excluded_contract WHERE UPPER(TRIM(appendix_number)) = @Norm
                         );",
-                        new { BatchId = batch.Id, AppNo = ghostKey, MarkedBy = batch.UploadedBy }, transaction);
+                        new
+                        {
+                            BatchId = batch.Id,
+                            AppNo = ghostKey,
+                            Norm = ghostNorm,
+                            CustCode = GetStr("customer_code"),
+                            CustName = GetStr("customer_name"),
+                            FileName = batch.FileName,
+                            MarkedBy = batch.UploadedBy
+                        }, transaction);
                 }
                 break;
         }
