@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
 import {
-  X, BarChart3, TrendingUp, FileText, Landmark, GitFork, Users, ShieldCheck,
+  X, Home, BarChart3, TrendingUp, FileText, Landmark, GitFork, Users, ShieldCheck,
   Upload, LogOut, Calendar, SlidersHorizontal, RefreshCw, HelpCircle, Database
 } from 'lucide-react';
 import { emptyDimensions, countActiveFilters, normalizeDimensions } from './components/ReportFilterPanel';
 import { SavedReportValue } from './components/SavedReportViews';
 import { UnifiedFilterScopePanel } from './components/UnifiedFilterScopePanel';
+import { HomeDashboard } from './components/HomeDashboard';
 import { KpiCardsV1 } from './components/KpiCardsV1';
 import { TrendAndPivotSection } from './components/TrendAndPivotSection';
 import { ContractsTableV1 } from './components/ContractsTableV1';
@@ -35,8 +36,8 @@ export default function App() {
   });
 
   const [activeTab, setActiveTab] = useState<
-    'kpi_v1' | 'trend_v1' | 'contracts_v1' | 'stocks_v1' | 'org_tree_v1' | 'users' | 'permissions'
-  >('kpi_v1');
+    'home_v1' | 'kpi_v1' | 'trend_v1' | 'contracts_v1' | 'stocks_v1' | 'org_tree_v1' | 'users' | 'permissions'
+  >('home_v1');
 
   const [contractBasis, setContractBasis] = useState<'sales' | 'balance'>('sales');
   const [isImportV2Open, setIsImportV2Open] = useState(false);
@@ -209,7 +210,7 @@ export default function App() {
   };
 
   // Date Presets Helper
-  const applyPreset = (preset: 'today' | 'this_month' | 'last_month' | 'this_quarter' | 'this_year') => {
+  const applyPreset = (preset: 'today' | 'this_month' | 'last_month' | 'this_quarter' | 'this_year', immediate = false) => {
     const now = new Date();
     const y = now.getFullYear();
     const m = now.getMonth();
@@ -234,10 +235,14 @@ export default function App() {
       start = `${y}-01-01`;
     }
 
-    setFromDate(start);
-    setToDate(end);
-    setAsOfDate(end);
-    setAutoAdjustedNotice(null);
+    if (immediate) {
+      applyDateRangeNow(start, end, end);
+    } else {
+      setFromDate(start);
+      setToDate(end);
+      setAsOfDate(end);
+      setAutoAdjustedNotice(null);
+    }
   };
 
   const applyDateRangeNow = (start: string, end: string, asOf?: string, notice?: string | null) => {
@@ -281,7 +286,7 @@ export default function App() {
   }, [currentUser, selectedDatasetId, reportView.viewEmployeeId, reportView.view, refreshKey]);
 
   useEffect(() => {
-    const isReportingTab = ['kpi_v1', 'trend_v1', 'contracts_v1', 'stocks_v1', 'org_tree_v1'].includes(activeTab);
+    const isReportingTab = ['home_v1', 'kpi_v1', 'trend_v1', 'contracts_v1', 'stocks_v1', 'org_tree_v1'].includes(activeTab);
     if (!currentUser || !isReportingTab) return;
 
     const onKeyDown = (e: KeyboardEvent) => {
@@ -364,15 +369,29 @@ export default function App() {
           {/* Compact Navigation Tabs */}
           <nav className="hidden md:flex items-center gap-0.5 bg-slate-950/70 p-1 rounded-xl border border-slate-800 overflow-x-auto">
             <button
+              onClick={() => setActiveTab('home_v1')}
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                activeTab === 'home_v1'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              }`}
+              title="Trang chủ — Chỉ số hôm nay & tháng hiện tại"
+            >
+              <Home size={14} />
+              <span>Trang chủ</span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('kpi_v1')}
               className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
                 activeTab === 'kpi_v1'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
               }`}
+              title="Kết quả tổng quan — Chọn ngày & khoảng thời gian theo dõi"
             >
               <BarChart3 size={14} />
-              <span>KPI</span>
+              <span>Tổng quan</span>
             </button>
 
             <button
@@ -489,9 +508,9 @@ export default function App() {
 
       <label className="md:hidden block px-4 py-3 bg-slate-900 text-slate-200 text-sm">Chuyển màn hình
         <select aria-label="Chuyển màn hình" value={activeTab} onChange={e => setActiveTab(e.target.value as typeof activeTab)} className="ml-3 p-2 rounded-lg bg-slate-800 text-white">
-          <option value="kpi_v1">Tổng quan</option><option value="trend_v1">Xu hướng & Cơ cấu</option>
-          <option value="contracts_v1">Hợp đồng</option><option value="stocks_v1">Chứng khoán</option><option value="org_tree_v1">Cây nhân sự</option>
-          {isAdmin && <><option value="users">Người dùng</option><option value="permissions">Phân quyền</option></>}
+          <option value="home_v1">Trang chủ</option><option value="kpi_v1">Tổng quan</option><option value="trend_v1">Xu hướng</option>
+          <option value="contracts_v1">Hợp đồng</option><option value="stocks_v1">Chứng khoán</option><option value="org_tree_v1">Nhân sự</option>
+          {isAdmin && <><option value="users">Tài khoản</option><option value="permissions">Phân quyền</option></>}
         </select>
       </label>
       {/* 3. Main Content Area */}
@@ -532,7 +551,7 @@ export default function App() {
           )}
 
           {/* Quick Smart Rules & Active Filter Chips Bar */}
-          {['kpi_v1', 'trend_v1', 'contracts_v1'].includes(activeTab) && (() => {
+          {['home_v1', 'kpi_v1', 'trend_v1', 'contracts_v1'].includes(activeTab) && (() => {
             const activeNode = scopeNodes.find(n => n.id === reportView.viewEmployeeId);
             const dimFields: Array<[ 'products' | 'terms' | 'channels' | 'statuses', string ]> = [
               ['products', 'Sản phẩm'],
@@ -634,19 +653,61 @@ export default function App() {
           })()}
         </>}
 
+        {activeTab === 'home_v1' && (
+          <HomeDashboard
+            reportView={reportView}
+            appliedDimensions={appliedDimensions}
+            datasetId={applied.datasetId || undefined}
+            refreshKey={refreshKey}
+            onOpenContracts={(basis, from, to, asOf) => {
+              setContractBasis(basis);
+              applyDateRangeNow(from, to, asOf);
+              setActiveTab('contracts_v1');
+            }}
+            onOpenOverview={() => setActiveTab('kpi_v1')}
+            onDrillDown={drillDown}
+          />
+        )}
+
         {activeTab === 'kpi_v1' && (
           <div>
-            {/* Section Header (Minimal-Text) */}
+            {/* Section Header (Kết quả tổng quan — Chọn kỳ & ngày chốt) */}
             <div className="flex flex-wrap items-center justify-between gap-2 mb-3.5 pb-2.5 border-b border-slate-200">
-              <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wide">
-                7 Chỉ Số KPI
-              </h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wide">
+                  Kết quả tổng quan
+                </h2>
+                <div className="inline-flex flex-wrap items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-bold">
+                  {([
+                    ['today', 'Hôm nay'],
+                    ['this_month', 'Tháng này'],
+                    ['last_month', 'Tháng trước'],
+                    ['this_quarter', 'Quý này'],
+                    ['this_year', 'Cả năm'],
+                  ] as const).map(([preset, lbl]) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => applyPreset(preset, true)}
+                      className="px-2 py-1 rounded-md text-slate-600 hover:bg-white hover:text-blue-700 transition cursor-pointer"
+                    >
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs bg-slate-100 border border-slate-200/90 text-slate-700 font-bold px-2.5 py-1 rounded-lg">
-                  {applied.fromDate} → {applied.toDate}
-                </span>
-                <span className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold px-2.5 py-1 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => setFilterModalTab('time')}
+                  className="inline-flex items-center gap-1.5 text-xs bg-slate-100 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 text-slate-700 hover:text-blue-800 font-bold px-2.5 py-1 rounded-lg transition cursor-pointer tabular-nums"
+                  title="Chọn khoảng thời gian & ngày chốt (Phím T)"
+                >
+                  <Calendar size={12} />
+                  <span>{applied.fromDate} → {applied.toDate}</span>
+                </button>
+                <span className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold px-2.5 py-1 rounded-lg tabular-nums">
                   Chốt: {applied.asOfDate}
                 </span>
                 {selectedDatasetId && (
@@ -720,24 +781,33 @@ export default function App() {
       </main>
 
       {/* 3b. Floating Bottom Taskbar Dock (Phím tắt: F / T / S / Esc) */}
-      {['kpi_v1', 'trend_v1', 'contracts_v1', 'stocks_v1', 'org_tree_v1'].includes(activeTab) && (() => {
+      {['home_v1', 'kpi_v1', 'trend_v1', 'contracts_v1', 'stocks_v1', 'org_tree_v1'].includes(activeTab) && (() => {
+        const isHome = activeTab === 'home_v1';
         const selectedNode = scopeNodes.find(n => n.id === reportView.viewEmployeeId);
         const dimCount = countActiveFilters(appliedDimensions);
         const hasPending =
-          fromDate !== applied.fromDate ||
-          toDate !== applied.toDate ||
-          asOfDate !== applied.asOfDate ||
-          selectedDatasetId !== applied.datasetId ||
-          JSON.stringify(dimensions) !== JSON.stringify(appliedDimensions);
+          !isHome && (
+            fromDate !== applied.fromDate ||
+            toDate !== applied.toDate ||
+            asOfDate !== applied.asOfDate ||
+            selectedDatasetId !== applied.datasetId
+          ) || JSON.stringify(dimensions) !== JSON.stringify(appliedDimensions);
 
         return (
           <footer className="sticky bottom-0 z-40 w-full bg-[#0b1120]/95 backdrop-blur-md border-t border-slate-800 text-white px-4 sm:px-5 py-2 shadow-[0_-4px_20px_rgba(15,23,42,0.18)]">
             <div className="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-2 text-xs">
               <div className="hidden lg:flex items-center gap-2.5 text-slate-400">
-                <span className="inline-flex items-center gap-1.5">
-                  <Landmark size={13} className="text-emerald-400" />
-                  <span>Chốt: <strong className="text-emerald-400 tabular-nums">{fmtFullDate(applied.asOfDate)}</strong></span>
-                </span>
+                {isHome ? (
+                  <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-400">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Trang chủ · Hôm nay & Tháng hiện tại</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1.5">
+                    <Landmark size={13} className="text-emerald-400" />
+                    <span>Chốt: <strong className="text-emerald-400 tabular-nums">{fmtFullDate(applied.asOfDate)}</strong></span>
+                  </span>
+                )}
                 {dateCoverage?.minDate && dateCoverage?.maxDate && (
                   <span
                     className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-800/80 border border-slate-700/70 text-slate-300 font-semibold tabular-nums cursor-default"
@@ -750,16 +820,18 @@ export default function App() {
               </div>
 
               <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 ml-auto mr-auto lg:mr-0">
-                <button
-                  type="button"
-                  onClick={() => setFilterModalTab('time')}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700/80 text-slate-100 font-semibold transition cursor-pointer tabular-nums"
-                  title={`Kỳ: ${applied.fromDate} → ${applied.toDate} (Phím T)`}
-                >
-                  <Calendar size={13} className="text-blue-400" />
-                  <span>{fmtShortDate(applied.fromDate)} → {fmtShortDate(applied.toDate)}</span>
-                  <kbd className="hidden sm:inline-block px-1 py-0.5 text-[10px] font-mono bg-slate-700 text-slate-300 rounded">T</kbd>
-                </button>
+                {!isHome && (
+                  <button
+                    type="button"
+                    onClick={() => setFilterModalTab('time')}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700/80 text-slate-100 font-semibold transition cursor-pointer tabular-nums"
+                    title={`Kỳ: ${applied.fromDate} → ${applied.toDate} (Phím T)`}
+                  >
+                    <Calendar size={13} className="text-blue-400" />
+                    <span>{fmtShortDate(applied.fromDate)} → {fmtShortDate(applied.toDate)}</span>
+                    <kbd className="hidden sm:inline-block px-1 py-0.5 text-[10px] font-mono bg-slate-700 text-slate-300 rounded">T</kbd>
+                  </button>
+                )}
 
                 <button
                   type="button"
@@ -825,7 +897,7 @@ export default function App() {
       })()}
 
       {/* 3c. Setup Modal for Time, Scope & Dimension Filters */}
-      {filterModalTab !== null && ['kpi_v1', 'trend_v1', 'contracts_v1', 'stocks_v1', 'org_tree_v1'].includes(activeTab) && (
+      {filterModalTab !== null && ['home_v1', 'kpi_v1', 'trend_v1', 'contracts_v1', 'stocks_v1', 'org_tree_v1'].includes(activeTab) && (
         <div
           className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6"
           onClick={() => setFilterModalTab(null)}
