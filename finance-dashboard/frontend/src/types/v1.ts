@@ -193,8 +193,25 @@ export interface DimensionFilters {
   channels: string[];
   statuses: string[];
   excludeTenDays?: boolean;
+  earlyLiquidationMaxDays?: 0 | 5 | 10;
   excludeSafeNewCust?: boolean;
   excludeGhost?: boolean;
+}
+
+export interface GhostRegistryItem {
+  id: number;
+  appendixNumber: string;
+  customerCode?: string;
+  customerName?: string;
+  productName?: string;
+  contractValue?: number;
+  signDate?: string;
+  saleId?: string;
+  reason?: string;
+  sourceFileName?: string;
+  markedBy: string;
+  markedAt: string;
+  isLocked: boolean;
 }
 export interface ContractPage {
   items: ContractDetailItem[];

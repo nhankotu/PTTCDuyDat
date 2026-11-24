@@ -38,7 +38,13 @@ builder.Services.AddScoped<IDashboardService, DashboardService>();
 builder.Services.AddScoped<IOrgTreeService, OrgTreeService>();
 builder.Services.AddSingleton<IStorageService, LocalStorageService>();
 
-// Add V1 Versioned Services
+// Add V1 Versioned Services & Performance Middleware (Render Free)
+builder.Services.AddMemoryCache(options => options.SizeLimit = 512);
+builder.Services.AddResponseCompression(options =>
+{
+    options.EnableForHttps = true;
+});
+builder.Services.AddSingleton<FinanceDashboard.Api.Services.Reporting.ReportCacheService>();
 builder.Services.AddScoped<FinanceDashboard.Api.Services.Import.ExcelImportV2Service>();
 builder.Services.AddScoped<FinanceDashboard.Api.Services.Authorization.DataAccessScopeService>();
 builder.Services.AddScoped<FinanceDashboard.Api.Services.Reporting.ReportingEngineV2Service>();
@@ -143,6 +149,7 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
+app.UseResponseCompression();
 app.UseCors("AllowAll");
 
 app.UseAuthentication();

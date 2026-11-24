@@ -555,20 +555,29 @@ export default function App() {
             const totalActive = countActiveFilters(appliedDimensions) + (reportView.viewEmployeeId ? 1 : 0);
 
             return (
-              <div className="flex flex-wrap items-center gap-2 bg-white border border-slate-200/90 rounded-xl px-3.5 py-2.5 shadow-2xs text-xs">
-                <span className="font-bold text-slate-700 mr-1">⚡ Lọc nghiệp vụ nhanh:</span>
-                <button
-                  type="button"
-                  onClick={() => applyDimensionsNow({ ...appliedDimensions, excludeTenDays: !appliedDimensions.excludeTenDays })}
-                  className={`px-2.5 py-1 rounded-lg font-semibold border transition cursor-pointer ${
-                    appliedDimensions.excludeTenDays
-                      ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
-                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                  }`}
-                  title="Bật/tắt loại trừ hợp đồng có số ngày duy trì thực tế ≤ 10 ngày khỏi doanh số"
-                >
-                  {appliedDimensions.excludeTenDays ? '✓ ' : ''}Loại HĐ ≤ 10 ngày
-                </button>
+              <div className="flex flex-wrap items-center gap-2 bg-white border border-slate-200/90 rounded-xl px-3.5 py-2 shadow-2xs text-xs">
+                <span className="font-bold text-slate-700">⚡ Lọc nhanh:</span>
+                <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200 font-bold" title="Loại trừ hợp đồng thanh lý sớm khỏi Doanh số, Số HĐ và Quy mô TB">
+                  {([
+                    [5, 'Loại ≤ 5 ngày'],
+                    [10, 'Loại ≤ 10 ngày'],
+                    [0, 'Không loại'],
+                  ] as const).map(([days, lbl]) => {
+                    const active = (appliedDimensions.earlyLiquidationMaxDays ?? 5) === days;
+                    return (
+                      <button
+                        key={days}
+                        type="button"
+                        onClick={() => applyDimensionsNow({ ...appliedDimensions, earlyLiquidationMaxDays: days, excludeTenDays: days === 10 })}
+                        className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
+                          active ? 'bg-indigo-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        {lbl}
+                      </button>
+                    );
+                  })}
+                </div>
 
                 <button
                   type="button"
@@ -578,9 +587,9 @@ export default function App() {
                       ? 'bg-purple-600 text-white border-purple-600 shadow-2xs'
                       : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                   }`}
-                  title="Bật/tắt chuẩn KH mới: HĐ ngoài Safe đầu tiên trong kỳ có giá trị ≥ 1 triệu VNĐ"
+                  title="Chuẩn KH mới: HĐ ngoài Safe đầu tiên trong kỳ >= 1 triệu VNĐ"
                 >
-                  {appliedDimensions.excludeSafeNewCust ? '✓ ' : ''}KH mới (Ngoài Safe ≥ 1Tr)
+                  {appliedDimensions.excludeSafeNewCust ? '✓ ' : ''}KH mới (≥ 1Tr)
                 </button>
 
                 <button
@@ -591,9 +600,9 @@ export default function App() {
                       ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-2xs font-bold'
                       : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
                   }`}
-                  title="Bật/tắt loại trừ các hợp đồng ma khỏi mọi chỉ số tính toán"
+                  title="Loại trừ các hợp đồng ma khỏi mọi chỉ số"
                 >
-                  {appliedDimensions.excludeGhost ? '✓ ' : ''}Loại trừ HĐ ma
+                  {appliedDimensions.excludeGhost ? '✓ ' : ''}Loại HĐ ma
                 </button>
 
                 {activeNode && (
@@ -638,31 +647,21 @@ export default function App() {
 
         {activeTab === 'kpi_v1' && (
           <div>
-            {/* Section Header */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-slate-200">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-lg bg-blue-600/10 text-blue-600 flex items-center justify-center font-bold text-base">
-                  🎯
-                </div>
-                <div>
-                  <h2 className="text-base font-extrabold text-slate-900 uppercase tracking-wide">
-                    Bộ 7 Chỉ Số Tài Chính Cốt Lõi
-                  </h2>
-                  <p className="text-xs text-slate-500 font-medium">
-                    Số liệu theo phạm vi đang xem. Chọn một chỉ tiêu để tra cứu các hợp đồng liên quan.
-                  </p>
-                </div>
-              </div>
+            {/* Section Header (Minimal-Text) */}
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3.5 pb-2.5 border-b border-slate-200">
+              <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wide">
+                7 Chỉ Số KPI
+              </h2>
 
-              <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
-                <span className="text-xs bg-slate-100 border border-slate-200/90 text-slate-700 font-bold px-3 py-1 rounded-lg">
-                  Kỳ: {applied.fromDate} ➔ {applied.toDate}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs bg-slate-100 border border-slate-200/90 text-slate-700 font-bold px-2.5 py-1 rounded-lg">
+                  {applied.fromDate} → {applied.toDate}
                 </span>
-                <span className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold px-3 py-1 rounded-lg">
-                  Chốt số dư: {applied.asOfDate}
+                <span className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold px-2.5 py-1 rounded-lg">
+                  Chốt: {applied.asOfDate}
                 </span>
                 {selectedDatasetId && (
-                  <span className="text-xs bg-purple-50 border border-purple-200 text-purple-800 font-bold px-3 py-1 rounded-lg">
+                  <span className="text-xs bg-purple-50 border border-purple-200 text-purple-800 font-bold px-2.5 py-1 rounded-lg">
                     Bản chốt: {selectedDatasetId.substring(0, 8)}...
                   </span>
                 )}
@@ -679,19 +678,19 @@ export default function App() {
                 kpiData={kpiData}
                 loading={kpiLoading}
                 excludeSafeNewCust={appliedDimensions.excludeSafeNewCust}
-                excludeTenDays={appliedDimensions.excludeTenDays}
+                earlyLiquidationMaxDays={appliedDimensions.earlyLiquidationMaxDays ?? 5}
                 onOpenDetails={basis => { setContractBasis(basis); setActiveTab('contracts_v1'); }}
               />
             )}
 
-            <div className="flex justify-end mb-3"><button onClick={() => setActiveTab('trend_v1')} className="text-sm font-semibold text-blue-700 cursor-pointer">Mở phân tích chi tiết →</button></div>
+            <div className="flex justify-end mb-3"><button onClick={() => setActiveTab('trend_v1')} className="text-xs font-bold text-blue-700 hover:underline cursor-pointer">Phân tích chi tiết →</button></div>
             {/* Embedded Trend & Pivot */}
-            <TrendAndPivotSection compact refreshKey={refreshKey} onDrillDown={drillDown} {...appliedDimensions} fromDate={applied.fromDate} toDate={applied.toDate} datasetId={applied.datasetId || undefined} {...reportView} />
+            <TrendAndPivotSection compact refreshKey={refreshKey} onDrillDown={drillDown} {...appliedDimensions} fromDate={applied.fromDate} toDate={applied.toDate} asOfDate={applied.asOfDate} datasetId={applied.datasetId || undefined} {...reportView} />
           </div>
         )}
 
         {activeTab === 'trend_v1' && (
-          <TrendAndPivotSection refreshKey={refreshKey} onDrillDown={drillDown} {...appliedDimensions} fromDate={applied.fromDate} toDate={applied.toDate} datasetId={applied.datasetId || undefined} {...reportView} />
+          <TrendAndPivotSection refreshKey={refreshKey} onDrillDown={drillDown} {...appliedDimensions} fromDate={applied.fromDate} toDate={applied.toDate} asOfDate={applied.asOfDate} datasetId={applied.datasetId || undefined} {...reportView} />
         )}
 
         {activeTab === 'contracts_v1' && (

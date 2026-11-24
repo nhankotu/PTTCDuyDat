@@ -9,28 +9,39 @@ export const emptyDimensions = (): DimensionFilters => ({
   channels: [],
   statuses: [],
   excludeTenDays: false,
+  earlyLiquidationMaxDays: 5,
   excludeSafeNewCust: false,
   excludeGhost: false,
 });
 
-export const normalizeDimensions = (d?: Partial<DimensionFilters> | null): DimensionFilters => ({
-  products: Array.isArray(d?.products) ? d!.products : [],
-  terms: Array.isArray(d?.terms) ? d!.terms : [],
-  channels: Array.isArray(d?.channels) ? d!.channels : [],
-  statuses: Array.isArray(d?.statuses) ? d!.statuses : [],
-  excludeTenDays: Boolean(d?.excludeTenDays),
-  excludeSafeNewCust: Boolean(d?.excludeSafeNewCust),
-  excludeGhost: Boolean(d?.excludeGhost),
-});
+export const normalizeDimensions = (d?: Partial<DimensionFilters> | null): DimensionFilters => {
+  const earlyDays: 0 | 5 | 10 =
+    d?.earlyLiquidationMaxDays === 0 || d?.earlyLiquidationMaxDays === 5 || d?.earlyLiquidationMaxDays === 10
+      ? d.earlyLiquidationMaxDays
+      : d?.excludeTenDays
+      ? 10
+      : 5;
+  return {
+    products: Array.isArray(d?.products) ? d!.products : [],
+    terms: Array.isArray(d?.terms) ? d!.terms : [],
+    channels: Array.isArray(d?.channels) ? d!.channels : [],
+    statuses: Array.isArray(d?.statuses) ? d!.statuses : [],
+    excludeTenDays: earlyDays === 10,
+    earlyLiquidationMaxDays: earlyDays,
+    excludeSafeNewCust: Boolean(d?.excludeSafeNewCust),
+    excludeGhost: Boolean(d?.excludeGhost),
+  };
+};
 
 export const countActiveFilters = (d?: DimensionFilters | null): number => {
   if (!d) return 0;
+  const earlyDays = d.earlyLiquidationMaxDays ?? (d.excludeTenDays ? 10 : 5);
   return (
     (d.products?.length || 0) +
     (d.terms?.length || 0) +
     (d.channels?.length || 0) +
     (d.statuses?.length || 0) +
-    (d.excludeTenDays ? 1 : 0) +
+    (earlyDays > 0 ? 1 : 0) +
     (d.excludeSafeNewCust ? 1 : 0) +
     (d.excludeGhost ? 1 : 0)
   );
@@ -77,49 +88,50 @@ export function ReportFilterPanel({ value, onChange, context, embedded }: {
       {loading && <p role="status" className="text-xs text-slate-500">Đang tải danh mục trong phạm vi được cấp…</p>}
       {error && <p role="alert" className="text-xs text-rose-700">{error} <button onClick={() => setRevision(n => n + 1)} className="underline cursor-pointer">Thử lại</button></p>}
       {/* Smart business rules toggles */}
-      <div className="border border-indigo-100 bg-indigo-50/40 rounded-xl p-3.5 space-y-2">
-        <div className="text-xs font-bold text-indigo-900 flex items-center gap-1.5">
-          <span>⚡</span>
-          <span>Quy tắc lọc dữ liệu thông minh (Tùy chọn linh hoạt)</span>
-        </div>
-        <div className="grid sm:grid-cols-3 gap-3 pt-1">
-          <label className="flex items-start gap-2 text-xs text-slate-700 font-medium cursor-pointer bg-white p-2.5 rounded-lg border border-slate-200 hover:border-indigo-300">
-            <input
-              type="checkbox"
-              checked={!!value.excludeTenDays}
-              onChange={e => onChange({ ...value, excludeTenDays: e.target.checked })}
-              className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500"
-            />
-            <div>
-              <span className="font-bold text-slate-900 block">Loại trừ HĐ ≤ 10 ngày</span>
-              <span className="text-[11px] text-slate-500">Không tính doanh số HĐ duy trì thực tế ≤ 10 ngày</span>
+      <div className="border border-indigo-100 bg-indigo-50/40 rounded-xl p-3 space-y-2">
+        <div className="text-xs font-bold text-indigo-900">⚡ Quy tắc lọc nghiệp vụ</div>
+        <div className="grid sm:grid-cols-3 gap-2.5">
+          <div className="bg-white p-2.5 rounded-lg border border-slate-200 space-y-1.5">
+            <span className="font-bold text-xs text-slate-900 block">Loại HĐ thanh lý sớm</span>
+            <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200 text-[11px] font-bold">
+              {([
+                [5, '≤ 5 ngày'],
+                [10, '≤ 10 ngày'],
+                [0, 'Tắt'],
+              ] as const).map(([days, lbl]) => {
+                const active = (value.earlyLiquidationMaxDays ?? 5) === days;
+                return (
+                  <button
+                    key={days}
+                    type="button"
+                    onClick={() => onChange({ ...value, earlyLiquidationMaxDays: days, excludeTenDays: days === 10 })}
+                    className={`px-2 py-1 rounded-md cursor-pointer transition ${active ? 'bg-indigo-600 text-white shadow-2xs' : 'text-slate-600'}`}
+                  >
+                    {lbl}
+                  </button>
+                );
+              })}
             </div>
-          </label>
+          </div>
 
-          <label className="flex items-start gap-2 text-xs text-slate-700 font-medium cursor-pointer bg-white p-2.5 rounded-lg border border-slate-200 hover:border-indigo-300">
+          <label className="flex items-center gap-2 text-xs text-slate-800 font-bold cursor-pointer bg-white p-2.5 rounded-lg border border-slate-200 hover:border-indigo-300" title="Chỉ tính KH có HĐ khác Safe >= 1Tr lần đầu">
             <input
               type="checkbox"
               checked={!!value.excludeSafeNewCust}
               onChange={e => onChange({ ...value, excludeSafeNewCust: e.target.checked })}
-              className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500"
+              className="rounded text-indigo-600 focus:ring-indigo-500"
             />
-            <div>
-              <span className="font-bold text-slate-900 block">Lọc KH mới (Non-Safe ≥ 1Tr)</span>
-              <span className="text-[11px] text-slate-500">Chỉ tính KH có HĐ khác Safe ≥ 1Tr lần đầu</span>
-            </div>
+            <span>KH mới (Ngoài Safe ≥ 1Tr)</span>
           </label>
 
-          <label className="flex items-start gap-2 text-xs text-slate-700 font-medium cursor-pointer bg-white p-2.5 rounded-lg border border-slate-200 hover:border-indigo-300">
+          <label className="flex items-center gap-2 text-xs text-slate-800 font-bold cursor-pointer bg-white p-2.5 rounded-lg border border-slate-200 hover:border-indigo-300" title="Bỏ qua các HĐ được đánh dấu ma khỏi mọi chỉ số">
             <input
               type="checkbox"
               checked={!!value.excludeGhost}
               onChange={e => onChange({ ...value, excludeGhost: e.target.checked })}
-              className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500"
+              className="rounded text-indigo-600 focus:ring-indigo-500"
             />
-            <div>
-              <span className="font-bold text-slate-900 block">Loại trừ hợp đồng ma</span>
-              <span className="text-[11px] text-slate-500">Bỏ qua các HĐ được đánh dấu ma khỏi mọi chỉ số</span>
-            </div>
+            <span>Loại trừ hợp đồng ma</span>
           </label>
         </div>
       </div>
@@ -134,9 +146,9 @@ export function ReportFilterPanel({ value, onChange, context, embedded }: {
       </div>
       {count > 0 && (
         <div className="flex flex-wrap gap-2">
-          {value.excludeTenDays && (
-            <button onClick={() => onChange({ ...value, excludeTenDays: false })} className="inline-flex items-center gap-1 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200 px-3 py-1 text-xs font-semibold cursor-pointer">
-              ⚡ Loại HĐ ≤ 10 ngày <X size={12} />
+          {(value.earlyLiquidationMaxDays ?? 5) > 0 && (
+            <button onClick={() => onChange({ ...value, earlyLiquidationMaxDays: 0, excludeTenDays: false })} className="inline-flex items-center gap-1 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200 px-3 py-1 text-xs font-semibold cursor-pointer">
+              ⚡ Loại HĐ ≤ {value.earlyLiquidationMaxDays ?? 5} ngày <X size={12} />
             </button>
           )}
           {value.excludeSafeNewCust && (

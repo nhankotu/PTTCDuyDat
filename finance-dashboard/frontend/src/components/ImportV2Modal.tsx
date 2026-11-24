@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { apiV1 } from '../services/apiV1';
 import { ImportPreviewResponse } from '../types/v1';
+import { MultiFileImportPanel } from './MultiFileImportPanel';
 
 interface Props {
   isOpen: boolean;
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export const ImportV2Modal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) => {
+  const [importMode, setImportMode] = useState<'multi' | 'single'>('multi');
   const [file, setFile] = useState<File | null>(null);
   const [sourceType, setSourceType] = useState<string>('APPENDIX');
   const [sourceDate, setSourceDate] = useState<string>(new Date().toISOString().slice(0, 10));
@@ -144,6 +146,50 @@ export const ImportV2Modal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =
 
         {/* Content */}
         <div className="p-6 overflow-y-auto flex-1 space-y-5 text-xs text-slate-700">
+          {/* Mode Switcher */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200 text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => setImportMode('multi')}
+                className={`px-3.5 py-1.5 rounded-lg transition cursor-pointer ${
+                  importMode === 'multi' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                ⚡ Nạp nhanh 5 file (PL / TT / CK / NL / NS)
+              </button>
+              <button
+                type="button"
+                onClick={() => setImportMode('single')}
+                className={`px-3.5 py-1.5 rounded-lg transition cursor-pointer ${
+                  importMode === 'single' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                📄 Nạp đơn file / Hợp đồng ma
+              </button>
+            </div>
+
+            {importMode === 'multi' && (
+              <div className="flex items-center gap-2 text-xs">
+                <label className="font-semibold text-slate-600">Ngày DL:</label>
+                <input
+                  type="date"
+                  value={sourceDate}
+                  onChange={(e) => { setSourceDate(e.target.value); setEffectiveDate(e.target.value); }}
+                  className="border border-slate-300 rounded-lg px-2 py-1 bg-white font-semibold text-slate-800"
+                />
+              </div>
+            )}
+          </div>
+
+          {importMode === 'multi' ? (
+            <MultiFileImportPanel
+              sourceDate={sourceDate}
+              effectiveDate={effectiveDate}
+              onAnyConfirmed={onSuccess}
+            />
+          ) : (
+          <>
           {errorMsg && (
             <div className="bg-rose-50 border border-rose-200 text-rose-700 p-3.5 rounded-2xl text-xs flex items-center space-x-2">
               <span className="text-base">⚠️</span>
@@ -601,6 +647,8 @@ export const ImportV2Modal: React.FC<Props> = ({ isOpen, onClose, onSuccess }) =
                 </div>
               </div>
             </div>
+          )}
+          </>
           )}
         </div>
       </div>
