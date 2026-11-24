@@ -35,13 +35,9 @@ public class ReportingEngineV2Service
     private static string IsGhostSql(string alias = "c") =>
         $"EXISTS (SELECT 1 FROM ghost_contract_registry gr WHERE gr.appendix_number_norm = UPPER(TRIM({alias}.appendix_number)))";
 
-    private static string EarlyLiquidationRuleSql(string alias = "c", bool hasStatus = true) => $@"(
+    private static string EarlyLiquidationRuleSql(string alias = "c") => $@"(
         @EarlyLiquidationMaxDays <= 0 OR (
-            CASE
-              WHEN {(hasStatus ? $"{alias}.status = 'LIQUIDATED' AND " : "")}{alias}.liquidate_date IS NOT NULL
-                THEN ({alias}.liquidate_date - {alias}.sign_date) > @EarlyLiquidationMaxDays
-              ELSE (@RefDate - {alias}.sign_date) > @EarlyLiquidationMaxDays
-            END
+            (COALESCE({alias}.liquidate_date, {alias}.expire_date, @RefDate) - {alias}.sign_date) > @EarlyLiquidationMaxDays
         )
     )";
 

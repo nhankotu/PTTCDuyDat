@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ReactECharts from 'echarts-for-react';
+import { TrendingUp, PieChart, Columns2, Layers } from 'lucide-react';
 import { ReportView, DimensionFilters } from '../types/v1';
 import { apiV1 } from '../services/apiV1';
 import { TrendPoint, PivotItem } from '../types/v1';
@@ -169,6 +170,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({
   const trendOption = {
     animationDuration: 220,
     animationDurationUpdate: 150,
+    textStyle: { fontFamily: "'Be Vietnam Pro', sans-serif" },
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
@@ -476,73 +478,73 @@ export const TrendAndPivotSection: React.FC<Props> = ({
     <div className="space-y-6">
       {error && <p role="alert" className="p-4 rounded-xl bg-rose-50 text-rose-800">{error} <button onClick={() => setRevision(n => n + 1)} className="underline font-semibold">Thử lại</button></p>}
       {/* 1. Trend Section */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-6 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4 border-slate-100">
-          <div>
-            <h3 className="font-bold text-slate-900 text-base flex items-center space-x-2">
-              <span className="p-1 rounded-md bg-blue-50 text-blue-600">📈</span>
-              <span>Xu Hướng Doanh Số & Số Dư Theo Thời Gian</span>
-            </h3>
-            <p className="text-xs text-slate-500 mt-1 font-medium">
-              Doanh số phát sinh trong kỳ (cột xanh) & Số dư lũy kế tại ngày cuối của từng mốc thời gian (đường xanh ngọc).
-            </p>
-          </div>
+      <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-5 space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3 border-slate-100">
+          <h3
+            className="font-extrabold text-slate-900 text-sm sm:text-base flex items-center gap-2"
+            title="Doanh số phát sinh trong kỳ (cột xanh) & Số dư lũy kế tại ngày cuối từng mốc (đường xanh ngọc)."
+          >
+            <span className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+              <TrendingUp size={16} />
+            </span>
+            <span>Xu hướng Doanh số & Số dư</span>
+          </h3>
 
           {/* Segmented Control */}
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2">
             {period === 'week' && (
-              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1">
-                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Mốc Tuần:</span>
+              <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 rounded-xl px-2 py-1">
                 <select
+                  aria-label="Mốc tuần"
                   value={weekMode}
                   onChange={(e) => setWeekMode(e.target.value as any)}
                   className="bg-white border border-slate-200 rounded-lg px-2 py-0.5 text-xs font-bold text-slate-700 focus:outline-none shadow-2xs"
                 >
-                  <option value="standard">📅 Thứ 2 - CN (Lịch chuẩn)</option>
-                  <option value="business4week">🏢 4 Mốc Kinh Doanh (1-7, 8-15, 16-22, 23-Cuối)</option>
-                  <option value="custom">⚙️ Mốc Tùy Chỉnh Theo Ngày Làm Việc</option>
+                  <option value="standard">T2 – CN</option>
+                  <option value="business4week">4 mốc (1-7, 8-15, 16-22, 23-cuối)</option>
+                  <option value="custom">Tùy chỉnh</option>
                 </select>
 
                 {weekMode === 'custom' && (
                   <button
                     type="button"
                     onClick={openWeekModal}
-                    className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer"
+                    className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
                   >
-                    <span>✏️ Cài Đặt ({customIntervals.length})</span>
+                    Cài đặt ({customIntervals.length})
                   </button>
                 )}
               </div>
             )}
 
-            <div className="flex items-center space-x-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/70 self-start sm:self-auto">
+            <div className="flex items-center space-x-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/70">
               <button
                 type="button"
                 onClick={() => setChartViewMode('split')}
-                title="Tách riêng 2 biểu đồ để nhìn rõ xu hướng Số Dư"
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer ${
+                title="Tách riêng 2 biểu đồ Doanh số & Số dư"
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
                   chartViewMode === 'split'
                     ? 'bg-white text-emerald-700 shadow-xs border border-slate-200/50'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                📊 Tách 2 Biểu Đồ
+                <Columns2 size={13} /> Tách
               </button>
               <button
                 type="button"
                 onClick={() => setChartViewMode('combined')}
                 title="Gộp chung 2 trục Doanh số & Số dư"
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer ${
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
                   chartViewMode === 'combined'
                     ? 'bg-white text-blue-600 shadow-xs border border-slate-200/50'
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                🔗 Gộp Chung
+                <Layers size={13} /> Gộp
               </button>
             </div>
 
-            <div className="flex items-center space-x-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/70 self-start sm:self-auto">
+            <div className="flex items-center space-x-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/70">
               {(['day', 'week', 'month', 'quarter'] as const).map((p) => {
                 const isActive = period === p;
                 const label = p === 'day' ? 'Ngày' : p === 'week' ? 'Tuần' : p === 'month' ? 'Tháng' : 'Quý';
@@ -550,7 +552,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({
                   <button
                     key={p}
                     onClick={() => setPeriod(p)}
-                    className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all duration-150 cursor-pointer ${
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
                       isActive
                         ? 'bg-white text-blue-600 shadow-xs border border-slate-200/50'
                         : 'text-slate-600 hover:text-slate-900'
@@ -567,30 +569,20 @@ export const TrendAndPivotSection: React.FC<Props> = ({
         {loading ? (
           <div className="h-72 flex flex-col items-center justify-center text-slate-400 space-y-2">
             <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
-            <span className="text-xs font-medium">Đang kết xuất biểu đồ xu hướng...</span>
+            <span className="text-xs font-medium">Đang tải biểu đồ...</span>
           </div>
         ) : trendData.length === 0 ? (
           <div className="h-72 flex flex-col items-center justify-center text-slate-400">
-            <span className="text-2xl mb-2">📊</span>
-            <span className="text-xs font-medium">Chưa có phát sinh dữ liệu trong kỳ này</span>
+            <span className="text-xs font-medium">Chưa có dữ liệu trong kỳ này</span>
           </div>
         ) : chartViewMode === 'split' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div className="border border-slate-100 rounded-xl p-3 bg-slate-50/40">
-              <div className="text-xs font-bold text-blue-700 flex items-center gap-1.5 mb-1 px-2">
-                <span>💰</span>
-                <span>Xu Hướng Doanh Số Phát Sinh (Theo Mốc)</span>
-              </div>
+              <div className="text-xs font-extrabold text-blue-700 mb-1 px-2">Doanh số</div>
               <ReactECharts option={salesOption} style={{ height: compact ? '240px' : '300px', width: '100%' }} />
             </div>
             <div className="border border-emerald-100 rounded-xl p-3 bg-emerald-50/20">
-              <div className="text-xs font-bold text-emerald-800 flex items-center justify-between gap-1.5 mb-1 px-2">
-                <span className="flex items-center gap-1.5">
-                  <span>🏦</span>
-                  <span>Xu Hướng Số Dư Nguồn Vốn (Trục Dãn Biên Độ Tự Động)</span>
-                </span>
-                <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-semibold">Zoom biên độ</span>
-              </div>
+              <div className="text-xs font-extrabold text-emerald-800 mb-1 px-2">Số dư</div>
               <ReactECharts option={balanceOption} style={{ height: compact ? '240px' : '300px', width: '100%' }} />
             </div>
           </div>
@@ -602,30 +594,27 @@ export const TrendAndPivotSection: React.FC<Props> = ({
       {!compact && <>
       {/* 2. Pivot & Shares Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-xs border border-slate-200/80 p-6 space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-4 border-slate-100">
-            <div>
-              <h3 className="font-bold text-slate-900 text-base flex items-center space-x-2">
-                <span className="p-1 rounded-md bg-purple-50 text-purple-600">🥧</span>
-                <span>Bảng Tổng Hợp Cơ Cấu & Tỷ Trọng Đa Chiều</span>
-              </h3>
-              <p className="text-xs text-slate-500 mt-1 font-medium">
-                Phân tích tỷ trọng doanh số và số dư theo từng phân loại quản lý.
-              </p>
-            </div>
+        <div className="lg:col-span-2 bg-white rounded-2xl shadow-xs border border-slate-200/80 p-5 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3 border-slate-100">
+            <h3 className="font-extrabold text-slate-900 text-sm sm:text-base flex items-center gap-2">
+              <span className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                <PieChart size={16} />
+              </span>
+              <span>Cơ cấu & Tỷ trọng</span>
+            </h3>
 
-            <div className="flex items-center space-x-2 self-start sm:self-auto">
-              <span className="text-xs font-semibold text-slate-600">Phân loại:</span>
+            <div className="flex items-center space-x-2">
               <select
+                aria-label="Phân loại"
                 value={groupBy}
                 onChange={(e) => setGroupBy(e.target.value as any)}
-                className="text-xs font-semibold border-slate-300 rounded-lg px-3 py-1.5 border bg-slate-50 focus:bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="text-xs font-bold border-slate-300 rounded-lg px-3 py-1.5 border bg-slate-50 focus:bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
               >
-                <option value="product">Sản phẩm đầu tư</option>
-                <option value="term">Kỳ hạn hợp đồng</option>
+                <option value="product">Sản phẩm</option>
+                <option value="term">Kỳ hạn</option>
                 <option value="channel">Kênh bán</option>
-                <option value="branch">Chi nhánh kinh doanh</option>
-                <option value="sale">Mã nhân viên Sale</option>
+                <option value="branch">Chi nhánh</option>
+                <option value="sale">Nhân viên Sale</option>
               </select>
             </div>
           </div>
@@ -719,22 +708,18 @@ export const TrendAndPivotSection: React.FC<Props> = ({
         </div>
 
         {/* Share Donut Chart */}
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-6 flex flex-col justify-between">
-          <div>
-            <h3 className="font-bold text-slate-900 text-sm flex items-center space-x-2">
-              <span className="p-1 rounded-md bg-indigo-50 text-indigo-600">🍩</span>
-              <span>Cơ Cấu Tỷ Trọng Doanh Số</span>
-            </h3>
-            <p className="text-xs text-slate-500 mt-1 font-medium">
-              Tỷ trọng phần trăm đóng góp theo từng nhóm.
-            </p>
-          </div>
+        <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-5 flex flex-col justify-between">
+          <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+              <PieChart size={15} />
+            </span>
+            <span>Tỷ trọng Doanh số</span>
+          </h3>
 
           <div className="my-auto py-2">
             {loading ? (
               <div className="h-64 flex flex-col items-center justify-center text-slate-400 space-y-2">
                 <div className="w-7 h-7 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                <span className="text-xs font-medium">Đang phân tích tỷ trọng...</span>
               </div>
             ) : pivotData.length === 0 ? (
               <div className="h-64 flex items-center justify-center text-slate-400 text-xs">
@@ -745,8 +730,8 @@ export const TrendAndPivotSection: React.FC<Props> = ({
             )}
           </div>
 
-          <div className="text-[11px] text-slate-400 text-center border-t border-slate-100 pt-3">
-            Tổng cộng: {pivotData.length} phân nhóm được ghi nhận
+          <div className="text-[11px] text-slate-400 text-center border-t border-slate-100 pt-2.5">
+            {pivotData.length} nhóm
           </div>
         </div>
       </div>
