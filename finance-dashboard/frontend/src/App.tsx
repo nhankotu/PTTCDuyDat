@@ -1,11 +1,24 @@
 import { useState, useEffect, useRef } from 'react';
 import {
-  X, Home, BarChart3, TrendingUp, FileText, Landmark, GitFork, Users, ShieldCheck,
-  Upload, LogOut, Calendar, SlidersHorizontal, RefreshCw, HelpCircle, Database
+  X,
+  Calendar,
+  SlidersHorizontal,
+  RefreshCw,
+  HelpCircle,
+  AlertTriangle,
+  AlertCircle,
+  Sparkles,
+  Check,
+  Users,
+  Zap,
+  Landmark,
+  ArrowRight,
 } from 'lucide-react';
 import { emptyDimensions, countActiveFilters, normalizeDimensions } from './components/ReportFilterPanel';
 import { SavedReportValue } from './components/SavedReportViews';
 import { UnifiedFilterScopePanel } from './components/UnifiedFilterScopePanel';
+import { Sidebar, ActiveTab } from './components/Sidebar';
+import { TopContextBar } from './components/TopContextBar';
 import { HomeDashboard } from './components/HomeDashboard';
 import { KpiCardsV1 } from './components/KpiCardsV1';
 import { TrendAndPivotSection } from './components/TrendAndPivotSection';
@@ -19,7 +32,13 @@ import { PermissionsPage } from './components/PermissionsPage';
 import { apiV1 } from './services/apiV1';
 import { dashboardApi } from './services/api';
 import { AuthSession } from './types';
-import { KpiReportResponse, ReportView, ViewScopeNode, DimensionFilters, DateCoverageResponse } from './types/v1';
+import {
+  KpiReportResponse,
+  ReportView,
+  ViewScopeNode,
+  DimensionFilters,
+  DateCoverageResponse,
+} from './types/v1';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<AuthSession | null>(() => {
@@ -35,9 +54,25 @@ export default function App() {
     return null;
   });
 
-  const [activeTab, setActiveTab] = useState<
-    'home_v1' | 'kpi_v1' | 'trend_v1' | 'contracts_v1' | 'stocks_v1' | 'org_tree_v1' | 'users' | 'permissions'
-  >('home_v1');
+  const [activeTab, setActiveTab] = useState<ActiveTab>('home_v1');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('finra_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  const toggleSidebarCollapsed = () => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('finra_sidebar_collapsed', String(next));
+      } catch {}
+      return next;
+    });
+  };
 
   const [contractBasis, setContractBasis] = useState<'sales' | 'balance'>('sales');
   const [isImportV2Open, setIsImportV2Open] = useState(false);
@@ -47,12 +82,8 @@ export default function App() {
     const now = new Date();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
   });
-  const [toDate, setToDate] = useState<string>(() => {
-    return new Date().toLocaleDateString('en-CA');
-  });
-  const [asOfDate, setAsOfDate] = useState<string>(() => {
-    return new Date().toLocaleDateString('en-CA');
-  });
+  const [toDate, setToDate] = useState<string>(() => new Date().toLocaleDateString('en-CA'));
+  const [asOfDate, setAsOfDate] = useState<string>(() => new Date().toLocaleDateString('en-CA'));
 
   // KPI V1 state
   const [kpiData, setKpiData] = useState<KpiReportResponse | null>(null);
@@ -83,6 +114,7 @@ export default function App() {
   const requestId = useRef(0);
   const selectionRequest = useRef(0);
   const reportKey = JSON.stringify([applied, appliedDimensions, reportView, refreshKey, currentUser?.username]);
+
   const applyFilters = () => {
     if (!fromDate || !toDate || !asOfDate || fromDate > toDate) {
       setDateError('Vui lòng chọn ngày hợp lệ; ngày bắt đầu không được sau ngày kết thúc.');
@@ -92,29 +124,44 @@ export default function App() {
     setAppliedDimensions(dimensions);
     if (applied.datasetId !== selectedDatasetId) setReportView({ view: 'subtree' });
     setApplied({ fromDate, toDate, asOfDate, datasetId: selectedDatasetId });
-    setRefreshKey(n => n + 1);
+    setRefreshKey((n) => n + 1);
   };
 
   useEffect(() => {
     let active = true;
-    setScopeNodes([]); setScopeError(null); setScopeLoading(true);
-    if (!currentUser) { setReportView({ view: 'subtree' }); return; }
-    apiV1.getViewScopes(applied.datasetId || undefined).then(nodes => {
-      if (!active) return;
-      setScopeNodes(nodes);
-      setReportView(previous => {
-        if (previous.viewEmployeeId && !nodes.some(n => n.id === previous.viewEmployeeId))
-          setScopeError('Node đang xem không còn trong phạm vi được cấp. Bạn có thể quay về phạm vi của mình.');
-        return previous;
+    setScopeNodes([]);
+    setScopeError(null);
+    setScopeLoading(true);
+    if (!currentUser) {
+      setReportView({ view: 'subtree' });
+      return;
+    }
+    apiV1
+      .getViewScopes(applied.datasetId || undefined)
+      .then((nodes) => {
+        if (!active) return;
+        setScopeNodes(nodes);
+        setReportView((previous) => {
+          if (previous.viewEmployeeId && !nodes.some((n) => n.id === previous.viewEmployeeId)) {
+            setScopeError('Node đang xem không còn trong phạm vi được cấp. Bạn có thể quay về phạm vi của mình.');
+          }
+          return previous;
+        });
+      })
+      .catch((err) => {
+        if (active) setScopeError(err.response?.data?.message || 'Không tải được danh sách nhân sự được phép xem.');
+      })
+      .finally(() => {
+        if (active) setScopeLoading(false);
       });
-    }).catch(err => {
-      if (active) setScopeError(err.response?.data?.message || 'Không tải được danh sách nhân sự được phép xem.');
-    }).finally(() => { if (active) setScopeLoading(false); });
-    return () => { active = false; };
+    return () => {
+      active = false;
+    };
   }, [currentUser?.username, applied.datasetId, scopeRevision]);
 
   const resetSessionState = () => {
-    setActiveTab('kpi_v1');
+    setActiveTab('home_v1');
+    setMobileNavOpen(false);
     setContractBasis('sales');
     setKpiData(null);
     setKpiError(null);
@@ -143,9 +190,16 @@ export default function App() {
   const loadKpiV1 = async () => {
     if (!currentUser) return;
     const id = ++requestId.current;
-    setKpiLoading(true); setKpiData(null); setKpiError(null);
+    setKpiLoading(true);
+    setKpiData(null);
+    setKpiError(null);
     try {
-      const res = await apiV1.getKpi({ ...applied, datasetId: applied.datasetId || undefined, ...reportView, ...appliedDimensions });
+      const res = await apiV1.getKpi({
+        ...applied,
+        datasetId: applied.datasetId || undefined,
+        ...reportView,
+        ...appliedDimensions,
+      });
       if (id === requestId.current) setKpiData(res);
     } catch (err: any) {
       if (id === requestId.current) setKpiError(err.response?.data?.message || 'Không tải được số liệu. Vui lòng thử lại.');
@@ -156,7 +210,9 @@ export default function App() {
 
   useEffect(() => {
     loadKpiV1();
-    return () => { requestId.current++; };
+    return () => {
+      requestId.current++;
+    };
   }, [reportKey]);
 
   useEffect(() => {
@@ -170,37 +226,49 @@ export default function App() {
 
   const changeReportView = (value: ReportView) => {
     const id = ++selectionRequest.current;
-    setScopeError(null); setReportView(value);
-    apiV1.recordScopeSelection({ ...value, datasetId: applied.datasetId || undefined }).catch(err => {
-      if (id === selectionRequest.current)
+    setScopeError(null);
+    setReportView(value);
+    apiV1.recordScopeSelection({ ...value, datasetId: applied.datasetId || undefined }).catch((err) => {
+      if (id === selectionRequest.current) {
         setScopeError(err.response?.data?.message || 'Chưa xác nhận được phạm vi xem. Vui lòng thử lại.');
+      }
     });
   };
 
   const loadSavedView = (value: SavedReportValue) => {
     const normDims = normalizeDimensions(value.dimensions);
-    setFromDate(value.fromDate); setToDate(value.toDate); setAsOfDate(value.asOfDate);
+    setFromDate(value.fromDate);
+    setToDate(value.toDate);
+    setAsOfDate(value.asOfDate);
     setSelectedDatasetId(value.datasetId);
-    setDimensions(normDims); setAppliedDimensions(normDims);
+    setDimensions(normDims);
+    setAppliedDimensions(normDims);
     setApplied({ fromDate: value.fromDate, toDate: value.toDate, asOfDate: value.asOfDate, datasetId: value.datasetId });
-    setReportView(value.reportView); setRefreshKey(n => n + 1); setDateError(null);
-    setScopeRevision(n => n + 1);
+    setReportView(value.reportView);
+    setRefreshKey((n) => n + 1);
+    setDateError(null);
+    setScopeRevision((n) => n + 1);
   };
+
   const applyDimensionsNow = (next: DimensionFilters) => {
     const norm = normalizeDimensions(next);
     setDimensions(norm);
     setAppliedDimensions(norm);
   };
+
   const drillDown = (groupBy: string, groupKey: string) => {
     if (groupBy === 'sale') {
-      if (!scopeNodes.some(node => node.id === groupKey)) return;
+      if (!scopeNodes.some((node) => node.id === groupKey)) return;
       changeReportView({ viewEmployeeId: groupKey, view: 'self' });
     } else {
-      const field = ({ product: 'products', term: 'terms', channel: 'channels' } as const)[groupBy as 'product' | 'term' | 'channel'];
+      const field = ({ product: 'products', term: 'terms', channel: 'channels' } as const)[
+        groupBy as 'product' | 'term' | 'channel'
+      ];
       if (!field) return;
       applyDimensionsNow({ ...appliedDimensions, [field]: [groupKey] });
     }
-    setContractBasis('sales'); setActiveTab('contracts_v1');
+    setContractBasis('sales');
+    setActiveTab('contracts_v1');
   };
 
   const handleLogout = async () => {
@@ -209,8 +277,10 @@ export default function App() {
     resetSessionState();
   };
 
-  // Date Presets Helper
-  const applyPreset = (preset: 'today' | 'this_month' | 'last_month' | 'this_quarter' | 'this_year', immediate = false) => {
+  const applyPreset = (
+    preset: 'today' | 'this_month' | 'last_month' | 'this_quarter' | 'this_year',
+    immediate = false
+  ) => {
     const now = new Date();
     const y = now.getFullYear();
     const m = now.getMonth();
@@ -259,42 +329,51 @@ export default function App() {
   useEffect(() => {
     if (!currentUser) return;
     let active = true;
-    apiV1.getDateCoverage({
-      datasetId: selectedDatasetId || undefined,
-      ...reportView
-    }).then(cov => {
-      if (!active) return;
-      setDateCoverage(cov);
-      if (!hasAutoAdjustedRef.current && cov.months.length > 0) {
-        hasAutoAdjustedRef.current = true;
-        const currentMonthKey = fromDate.slice(0, 7);
-        if (!cov.months.some(m => m.monthKey === currentMonthKey)) {
-          const latest = cov.months[0];
-          const targetAsOf = cov.maxDate && cov.maxDate < latest.toDate ? cov.maxDate : latest.toDate;
-          applyDateRangeNow(
-            latest.fromDate,
-            latest.toDate,
-            targetAsOf,
-            `Tháng hiện tại chưa có dữ liệu — đang tự động hiển thị tháng có dữ liệu gần nhất (${latest.label}).`
-          );
+    apiV1
+      .getDateCoverage({
+        datasetId: selectedDatasetId || undefined,
+        ...reportView,
+      })
+      .then((cov) => {
+        if (!active) return;
+        setDateCoverage(cov);
+        if (!hasAutoAdjustedRef.current && cov.months.length > 0) {
+          hasAutoAdjustedRef.current = true;
+          const currentMonthKey = fromDate.slice(0, 7);
+          if (!cov.months.some((m) => m.monthKey === currentMonthKey)) {
+            const latest = cov.months[0];
+            const targetAsOf = cov.maxDate && cov.maxDate < latest.toDate ? cov.maxDate : latest.toDate;
+            applyDateRangeNow(
+              latest.fromDate,
+              latest.toDate,
+              targetAsOf,
+              `Tháng hiện tại chưa có dữ liệu — đang tự động hiển thị tháng có dữ liệu gần nhất (${latest.label}).`
+            );
+          }
         }
-      }
-    }).catch(() => {
-      if (active) setDateCoverage(null);
-    });
-    return () => { active = false; };
+      })
+      .catch(() => {
+        if (active) setDateCoverage(null);
+      });
+    return () => {
+      active = false;
+    };
   }, [currentUser, selectedDatasetId, reportView.viewEmployeeId, reportView.view, refreshKey]);
 
   useEffect(() => {
-    const isReportingTab = ['home_v1', 'kpi_v1', 'trend_v1', 'contracts_v1', 'stocks_v1', 'org_tree_v1'].includes(activeTab);
-    if (!currentUser || !isReportingTab) return;
+    if (!currentUser) return;
+    const isReportingTab = ['home_v1', 'kpi_v1', 'trend_v1', 'contracts_v1', 'stocks_v1', 'org_tree_v1'].includes(
+      activeTab
+    );
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         setFilterModalTab(null);
         setHelpOpen(false);
+        setMobileNavOpen(false);
         return;
       }
+      if (!isReportingTab) return;
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName?.toUpperCase();
@@ -304,19 +383,19 @@ export default function App() {
       if (k === 'f') {
         e.preventDefault();
         setHelpOpen(false);
-        setFilterModalTab(prev => (prev ? null : 'all'));
+        setFilterModalTab((prev) => (prev ? null : 'all'));
       } else if (k === 't') {
         e.preventDefault();
         setHelpOpen(false);
-        setFilterModalTab(prev => (prev === 'time' ? null : 'time'));
+        setFilterModalTab((prev) => (prev === 'time' ? null : 'time'));
       } else if (k === 's') {
         e.preventDefault();
         setHelpOpen(false);
-        setFilterModalTab(prev => (prev === 'scope' ? null : 'scope'));
+        setFilterModalTab((prev) => (prev === 'scope' ? null : 'scope'));
       } else if (k === 'h' || e.key === '?') {
         e.preventDefault();
         setFilterModalTab(null);
-        setHelpOpen(prev => !prev);
+        setHelpOpen((prev) => !prev);
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -335,571 +414,466 @@ export default function App() {
   }
 
   const isAdmin = currentUser.role === 'admin';
-  const userInitials = (currentUser.fullName || currentUser.username || 'AD')
-    .split(' ')
-    .map((w: string) => w[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
-
-  const fmtShortDate = (iso: string) => {
-    const parts = iso.split('-');
-    return parts.length === 3 ? `${parts[2]}/${parts[1]}` : iso;
-  };
-  const fmtFullDate = (iso: string) => {
-    const parts = iso.split('-');
-    return parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : iso;
-  };
+  const isReportingTab = ['home_v1', 'kpi_v1', 'trend_v1', 'contracts_v1', 'stocks_v1', 'org_tree_v1'].includes(
+    activeTab
+  );
+  const isHome = activeTab === 'home_v1';
+  const dimCount = countActiveFilters(appliedDimensions);
+  const hasPending =
+    (!isHome &&
+      (fromDate !== applied.fromDate ||
+        toDate !== applied.toDate ||
+        asOfDate !== applied.asOfDate ||
+        selectedDatasetId !== applied.datasetId)) ||
+    JSON.stringify(dimensions) !== JSON.stringify(appliedDimensions);
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 antialiased font-sans">
-      {/* 1. Top Navigation Bar (Compact 1-row Fintech Header) */}
-      <header className="bg-slate-900 border-b border-slate-800 px-4 sm:px-5 h-14 flex items-center justify-between gap-3 sticky top-0 z-50 shadow-md">
-        <div className="flex items-center gap-3.5 min-w-0">
-          {/* Logo Finra */}
-          <div className="flex items-center gap-2 shrink-0">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-cyan-400 flex items-center justify-center font-black text-white text-base shadow-sm ring-1 ring-white/20">
-              F
-            </div>
-            <span className="text-base font-black tracking-tight text-white">Finra</span>
-          </div>
+    <div className="min-h-screen flex bg-[#F5F8FC] text-slate-800 antialiased font-sans">
+      {/* 1. Left White & Blue Sidebar Navigation */}
+      <Sidebar
+        activeTab={activeTab}
+        onSelectTab={setActiveTab}
+        isAdmin={isAdmin}
+        currentUser={currentUser}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={toggleSidebarCollapsed}
+        mobileOpen={mobileNavOpen}
+        onCloseMobile={() => setMobileNavOpen(false)}
+        onOpenImport={() => setIsImportV2Open(true)}
+        onOpenHelp={() => setHelpOpen(true)}
+        onLogout={handleLogout}
+      />
 
-          <div className="h-5 w-px bg-slate-700/80 hidden md:block shrink-0" />
+      {/* 2. Right Main Column */}
+      <div className="flex-1 min-w-0 flex flex-col">
+        <TopContextBar
+          activeTab={activeTab}
+          isAdmin={isAdmin}
+          isReportingTab={isReportingTab}
+          isHome={isHome}
+          applied={applied}
+          dateCoverage={dateCoverage}
+          scopeNodes={scopeNodes}
+          reportView={reportView}
+          activeFilterCount={dimCount}
+          hasPending={hasPending}
+          kpiLoading={kpiLoading}
+          onOpenMobileMenu={() => setMobileNavOpen(true)}
+          onOpenFilterModal={(tab) => setFilterModalTab(tab)}
+          onApplyFilters={applyFilters}
+          onRefresh={() => setRefreshKey((n) => n + 1)}
+        />
 
-          {/* Compact Navigation Tabs */}
-          <nav className="hidden md:flex items-center gap-0.5 bg-slate-950/70 p-1 rounded-xl border border-slate-800 overflow-x-auto">
-            <button
-              onClick={() => setActiveTab('home_v1')}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === 'home_v1'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-              title="Trang chủ — Chỉ số hôm nay & tháng hiện tại"
-            >
-              <Home size={14} />
-              <span>Trang chủ</span>
-            </button>
+        {/* 3. Main Content Area */}
+        <main className="flex-1 max-w-[1600px] mx-auto w-full p-4 sm:p-6 space-y-5">
+          {isReportingTab && (
+            <>
+              {JSON.stringify(dimensions) !== JSON.stringify(appliedDimensions) && (
+                <div
+                  role="status"
+                  className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3.5 py-2 text-xs sm:text-sm text-amber-900 font-medium"
+                >
+                  <AlertTriangle size={15} className="text-amber-600 shrink-0" />
+                  <span>Điều kiện nghiệp vụ đã thay đổi. Bấm “Áp dụng” để cập nhật.</span>
+                </div>
+              )}
 
-            <button
-              onClick={() => setActiveTab('kpi_v1')}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === 'kpi_v1'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-              title="Kết quả tổng quan — Chọn ngày & khoảng thời gian theo dõi"
-            >
-              <BarChart3 size={14} />
-              <span>Tổng quan</span>
-            </button>
+              {dateError && (
+                <div
+                  role="alert"
+                  className="flex items-center gap-2 rounded-xl bg-rose-50 border border-rose-200 px-3.5 py-2 text-xs sm:text-sm text-rose-800 font-medium"
+                >
+                  <AlertCircle size={15} className="text-rose-600 shrink-0" />
+                  <span>{dateError}</span>
+                </div>
+              )}
 
-            <button
-              onClick={() => setActiveTab('trend_v1')}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === 'trend_v1'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <TrendingUp size={14} />
-              <span>Xu hướng</span>
-            </button>
+              {autoAdjustedNotice && (
+                <div
+                  role="status"
+                  className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-[#EFF6FF] border border-[#DBEAFE] px-3.5 py-2 text-xs sm:text-sm text-[#0F294A]"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Sparkles size={15} className="text-[#1D4ED8] shrink-0" />
+                    <span>{autoAdjustedNotice}</span>
+                  </span>
+                  <button
+                    onClick={() => setAutoAdjustedNotice(null)}
+                    className="text-xs font-semibold text-[#1D4ED8] hover:underline cursor-pointer"
+                  >
+                    Đã hiểu
+                  </button>
+                </div>
+              )}
 
-            <button
-              onClick={() => setActiveTab('contracts_v1')}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === 'contracts_v1'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <FileText size={14} />
-              <span>Hợp đồng</span>
-            </button>
+              {!kpiLoading &&
+                kpiData &&
+                kpiData.metrics.totalContracts === 0 &&
+                dateCoverage &&
+                dateCoverage.months.length > 0 && (
+                  <div
+                    role="status"
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3.5 py-2 text-xs sm:text-sm text-amber-900"
+                  >
+                    <span>
+                      Khoảng thời gian đang chọn ({applied.fromDate} → {applied.toDate}) không có hợp đồng phát sinh.
+                    </span>
+                    <button
+                      onClick={() => {
+                        const latest = dateCoverage.months[0];
+                        const targetAsOf =
+                          dateCoverage.maxDate && dateCoverage.maxDate < latest.toDate ? dateCoverage.maxDate : latest.toDate;
+                        applyDateRangeNow(latest.fromDate, latest.toDate, targetAsOf);
+                      }}
+                      className="px-3 py-1 rounded-lg bg-[#1D4ED8] hover:bg-[#1E40AF] text-white text-xs font-semibold transition cursor-pointer"
+                    >
+                      Chuyển tới tháng có DL gần nhất ({dateCoverage.months[0].label})
+                    </button>
+                  </div>
+                )}
 
-            <button
-              onClick={() => setActiveTab('stocks_v1')}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === 'stocks_v1'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <Landmark size={14} />
-              <span>Chứng khoán</span>
-            </button>
+              {(fromDate !== applied.fromDate ||
+                toDate !== applied.toDate ||
+                asOfDate !== applied.asOfDate ||
+                selectedDatasetId !== applied.datasetId) && (
+                <div
+                  role="status"
+                  className="flex items-center justify-between gap-2 rounded-xl bg-[#EFF6FF] border border-[#BFDBFE] px-3.5 py-2 text-xs text-[#0F294A] font-medium"
+                >
+                  <span>Bộ lọc thời gian hoặc bản chốt có thay đổi chưa áp dụng.</span>
+                  <button
+                    onClick={applyFilters}
+                    className="px-3 py-1 rounded-lg bg-[#1D4ED8] hover:bg-[#1E40AF] text-white font-semibold cursor-pointer"
+                  >
+                    Áp dụng
+                  </button>
+                </div>
+              )}
 
-            <button
-              onClick={() => setActiveTab('org_tree_v1')}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                activeTab === 'org_tree_v1'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-              }`}
-            >
-              <GitFork size={14} />
-              <span>Nhân sự</span>
-            </button>
+              {/* Quick Smart Rules & Active Filter Chips Bar */}
+              {['home_v1', 'kpi_v1', 'trend_v1', 'contracts_v1'].includes(activeTab) &&
+                (() => {
+                  const activeNode = scopeNodes.find((n) => n.id === reportView.viewEmployeeId);
+                  const dimFields: Array<['products' | 'terms' | 'channels' | 'statuses', string]> = [
+                    ['products', 'Sản phẩm'],
+                    ['terms', 'Kỳ hạn'],
+                    ['channels', 'Kênh'],
+                    ['statuses', 'Trạng thái'],
+                  ];
+                  const stMap: Record<string, string> = {
+                    APPROVED: 'Đã duyệt',
+                    LIQUIDATED: 'Đã tất toán',
+                    PENDING: 'Chưa duyệt',
+                    ADVANCING: 'Đang ứng tiền',
+                  };
+                  const totalActive = countActiveFilters(appliedDimensions) + (reportView.viewEmployeeId ? 1 : 0);
 
-            {isAdmin && (
-              <button
-                onClick={() => setActiveTab('users')}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                  activeTab === 'users'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'text-amber-400/90 hover:text-amber-300 hover:bg-amber-500/10'
-                }`}
-              >
-                <Users size={14} />
-                <span>Tài khoản</span>
-              </button>
-            )}
+                  return (
+                    <div className="flex flex-wrap items-center gap-2 bg-white border border-slate-200/90 rounded-xl px-3.5 py-2.5 shadow-2xs text-xs">
+                      <span className="inline-flex items-center gap-1.5 font-semibold text-[#0F294A] mr-0.5">
+                        <Zap size={14} className="text-[#1D4ED8]" />
+                        <span>Lọc nhanh:</span>
+                      </span>
 
-            {isAdmin && (
-              <button
-                onClick={() => setActiveTab('permissions')}
-                className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                  activeTab === 'permissions'
-                    ? 'bg-purple-600 text-white shadow-xs'
-                    : 'text-purple-400/90 hover:text-purple-300 hover:bg-purple-500/10'
-                }`}
-              >
-                <ShieldCheck size={14} />
-                <span>Phân quyền</span>
-              </button>
-            )}
-          </nav>
-        </div>
+                      <div
+                        className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200 font-semibold"
+                        title="Loại trừ hợp đồng thanh lý sớm khỏi Doanh số, Số HĐ và Quy mô TB"
+                      >
+                        {([
+                          [5, 'Loại ≤ 5 ngày'],
+                          [10, 'Loại ≤ 10 ngày'],
+                          [0, 'Không loại'],
+                        ] as const).map(([days, lbl]) => {
+                          const active = (appliedDimensions.earlyLiquidationMaxDays ?? 5) === days;
+                          return (
+                            <button
+                              key={days}
+                              type="button"
+                              onClick={() =>
+                                applyDimensionsNow({
+                                  ...appliedDimensions,
+                                  earlyLiquidationMaxDays: days,
+                                  excludeTenDays: days === 10,
+                                })
+                              }
+                              className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
+                                active
+                                  ? 'bg-[#1D4ED8] text-white shadow-2xs'
+                                  : 'text-slate-600 hover:text-[#0F294A]'
+                              }`}
+                            >
+                              {lbl}
+                            </button>
+                          );
+                        })}
+                      </div>
 
-        {/* Right controls */}
-        <div className="flex items-center gap-2.5 shrink-0">
-          {isAdmin && (
-            <button
-              onClick={() => setIsImportV2Open(true)}
-              className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold px-3 py-1.5 rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer border border-emerald-400/30"
-              title="Nạp dữ liệu Excel"
-            >
-              <Upload size={14} />
-              <span>Import</span>
-            </button>
-          )}
-
-          {/* Compact User Avatar & Logout */}
-          <div className="flex items-center gap-2 pl-2.5 border-l border-slate-800">
-            <div
-              className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-xs text-slate-200 shadow-inner cursor-default"
-              title={`${currentUser.fullName || currentUser.username} · ${isAdmin ? 'Quản trị viên' : (currentUser.branchAccess || 'Nhân viên')}`}
-            >
-              {userInitials}
-            </div>
-
-            <button
-              onClick={handleLogout}
-              className="text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 border border-slate-700/80 hover:border-rose-500/30 rounded-lg p-1.5 transition-all cursor-pointer"
-              title="Đăng xuất"
-              aria-label="Đăng xuất"
-            >
-              <LogOut size={15} />
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <label className="md:hidden block px-4 py-3 bg-slate-900 text-slate-200 text-sm">Chuyển màn hình
-        <select aria-label="Chuyển màn hình" value={activeTab} onChange={e => setActiveTab(e.target.value as typeof activeTab)} className="ml-3 p-2 rounded-lg bg-slate-800 text-white">
-          <option value="home_v1">Trang chủ</option><option value="kpi_v1">Tổng quan</option><option value="trend_v1">Xu hướng</option>
-          <option value="contracts_v1">Hợp đồng</option><option value="stocks_v1">Chứng khoán</option><option value="org_tree_v1">Nhân sự</option>
-          {isAdmin && <><option value="users">Tài khoản</option><option value="permissions">Phân quyền</option></>}
-        </select>
-      </label>
-      {/* 3. Main Content Area */}
-      <main className="flex-1 max-w-[1600px] mx-auto w-full p-4 sm:p-6 space-y-5">
-        {!['users', 'permissions'].includes(activeTab) && <>
-          {JSON.stringify(dimensions) !== JSON.stringify(appliedDimensions) && (
-            <p role="status" className="text-xs sm:text-sm text-amber-800 font-medium">
-              ⚠️ Điều kiện nghiệp vụ đã thay đổi. Bấm “Áp dụng” để cập nhật.
-            </p>
-          )}
-          {dateError && <p role="alert" className="text-rose-700">{dateError}</p>}
-          {autoAdjustedNotice && (
-            <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs sm:text-sm text-emerald-900">
-              <span>✨ {autoAdjustedNotice}</span>
-              <button onClick={() => setAutoAdjustedNotice(null)} className="text-xs font-semibold text-emerald-700 hover:underline cursor-pointer">Đã hiểu</button>
-            </div>
-          )}
-          {!kpiLoading && kpiData && kpiData.metrics.totalContracts === 0 && dateCoverage && dateCoverage.months.length > 0 && (
-            <div role="status" className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-2 text-xs sm:text-sm text-amber-900">
-              <span>Khoảng thời gian đang chọn ({applied.fromDate} → {applied.toDate}) không có hợp đồng phát sinh.</span>
-              <button
-                onClick={() => {
-                  const latest = dateCoverage.months[0];
-                  const targetAsOf = dateCoverage.maxDate && dateCoverage.maxDate < latest.toDate ? dateCoverage.maxDate : latest.toDate;
-                  applyDateRangeNow(latest.fromDate, latest.toDate, targetAsOf);
-                }}
-                className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold transition cursor-pointer"
-              >
-                Chuyển tới tháng có DL gần nhất ({dateCoverage.months[0].label})
-              </button>
-            </div>
-          )}
-          {(fromDate !== applied.fromDate || toDate !== applied.toDate || asOfDate !== applied.asOfDate || selectedDatasetId !== applied.datasetId) && (
-            <div role="status" className="flex items-center justify-between gap-2 rounded-xl bg-amber-50 border border-amber-200 px-3 py-1.5 text-xs text-amber-900 font-medium">
-              <span>Bộ lọc có thay đổi chưa áp dụng.</span>
-              <button onClick={applyFilters} className="px-2.5 py-1 rounded-lg bg-amber-600 text-white font-bold cursor-pointer">Áp dụng</button>
-            </div>
-          )}
-
-          {/* Quick Smart Rules & Active Filter Chips Bar */}
-          {['home_v1', 'kpi_v1', 'trend_v1', 'contracts_v1'].includes(activeTab) && (() => {
-            const activeNode = scopeNodes.find(n => n.id === reportView.viewEmployeeId);
-            const dimFields: Array<[ 'products' | 'terms' | 'channels' | 'statuses', string ]> = [
-              ['products', 'Sản phẩm'],
-              ['terms', 'Kỳ hạn'],
-              ['channels', 'Kênh'],
-              ['statuses', 'Trạng thái'],
-            ];
-            const stMap: Record<string, string> = { APPROVED: 'Đã duyệt', LIQUIDATED: 'Đã tất toán', PENDING: 'Chưa duyệt', ADVANCING: 'Đang ứng tiền' };
-            const totalActive = countActiveFilters(appliedDimensions) + (reportView.viewEmployeeId ? 1 : 0);
-
-            return (
-              <div className="flex flex-wrap items-center gap-2 bg-white border border-slate-200/90 rounded-xl px-3.5 py-2 shadow-2xs text-xs">
-                <span className="font-bold text-slate-700">⚡ Lọc nhanh:</span>
-                <div className="inline-flex rounded-lg bg-slate-100 p-0.5 border border-slate-200 font-bold" title="Loại trừ hợp đồng thanh lý sớm khỏi Doanh số, Số HĐ và Quy mô TB">
-                  {([
-                    [5, 'Loại ≤ 5 ngày'],
-                    [10, 'Loại ≤ 10 ngày'],
-                    [0, 'Không loại'],
-                  ] as const).map(([days, lbl]) => {
-                    const active = (appliedDimensions.earlyLiquidationMaxDays ?? 5) === days;
-                    return (
                       <button
-                        key={days}
                         type="button"
-                        onClick={() => applyDimensionsNow({ ...appliedDimensions, earlyLiquidationMaxDays: days, excludeTenDays: days === 10 })}
-                        className={`px-2.5 py-1 rounded-md transition cursor-pointer ${
-                          active ? 'bg-indigo-600 text-white shadow-2xs' : 'text-slate-600 hover:text-slate-900'
+                        onClick={() =>
+                          applyDimensionsNow({
+                            ...appliedDimensions,
+                            excludeSafeNewCust: !appliedDimensions.excludeSafeNewCust,
+                          })
+                        }
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold border transition cursor-pointer ${
+                          appliedDimensions.excludeSafeNewCust
+                            ? 'bg-[#1D4ED8] text-white border-[#1D4ED8] shadow-2xs'
+                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-[#EFF6FF] hover:border-[#DBEAFE] hover:text-[#1D4ED8]'
                         }`}
+                        title="Chuẩn KH mới: HĐ ngoài Safe đầu tiên trong kỳ >= 1 triệu VNĐ"
+                      >
+                        {appliedDimensions.excludeSafeNewCust && <Check size={12} />}
+                        <span>KH mới (≥ 1Tr)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          applyDimensionsNow({
+                            ...appliedDimensions,
+                            excludeGhost: !appliedDimensions.excludeGhost,
+                          })
+                        }
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg font-semibold border transition cursor-pointer ${
+                          appliedDimensions.excludeGhost
+                            ? 'bg-amber-50 text-amber-900 border-amber-300 shadow-2xs'
+                            : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                        }`}
+                        title="Loại trừ các hợp đồng ma khỏi mọi chỉ số"
+                      >
+                        {appliedDimensions.excludeGhost && <Check size={12} className="text-amber-700" />}
+                        <span>Loại HĐ ma</span>
+                      </button>
+
+                      {activeNode && (
+                        <button
+                          type="button"
+                          onClick={() => changeReportView({ view: 'subtree' })}
+                          className="inline-flex items-center gap-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8] border border-[#BFDBFE] px-2.5 py-1 font-semibold cursor-pointer"
+                        >
+                          <Users size={12} />
+                          <span>
+                            {activeNode.label} ({reportView.view === 'subtree' ? 'Cả CN' : 'Cá nhân'})
+                          </span>
+                          <X size={12} />
+                        </button>
+                      )}
+
+                      {dimFields.flatMap(([field, label]) =>
+                        appliedDimensions[field].map((opt) => (
+                          <button
+                            key={`${field}:${opt}`}
+                            type="button"
+                            onClick={() =>
+                              applyDimensionsNow({
+                                ...appliedDimensions,
+                                [field]: appliedDimensions[field].filter((x) => x !== opt),
+                              })
+                            }
+                            className="inline-flex items-center gap-1 rounded-full bg-[#EFF6FF] text-[#1D4ED8] border border-[#DBEAFE] px-2.5 py-1 font-semibold cursor-pointer"
+                          >
+                            {label}: {stMap[opt] || opt} <X size={12} />
+                          </button>
+                        ))
+                      )}
+
+                      {totalActive > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            applyDimensionsNow(emptyDimensions());
+                            if (reportView.viewEmployeeId) changeReportView({ view: 'subtree' });
+                          }}
+                          className="ml-auto text-rose-600 hover:underline font-semibold cursor-pointer"
+                        >
+                          Đặt lại bộ lọc
+                        </button>
+                      )}
+                    </div>
+                  );
+                })()}
+            </>
+          )}
+
+          {activeTab === 'home_v1' && (
+            <HomeDashboard
+              reportView={reportView}
+              appliedDimensions={appliedDimensions}
+              datasetId={applied.datasetId || undefined}
+              refreshKey={refreshKey}
+              onOpenContracts={(basis, from, to, asOf) => {
+                setContractBasis(basis);
+                applyDateRangeNow(from, to, asOf);
+                setActiveTab('contracts_v1');
+              }}
+              onOpenOverview={() => setActiveTab('kpi_v1')}
+              onDrillDown={drillDown}
+            />
+          )}
+
+          {activeTab === 'kpi_v1' && (
+            <div>
+              {/* Section Header */}
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-200">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <h2 className="text-sm font-bold text-[#0F294A] uppercase tracking-wide">
+                    Kết quả tổng quan
+                  </h2>
+                  <div className="inline-flex flex-wrap items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 text-xs font-semibold">
+                    {([
+                      ['today', 'Hôm nay'],
+                      ['this_month', 'Tháng này'],
+                      ['last_month', 'Tháng trước'],
+                      ['this_quarter', 'Quý này'],
+                      ['this_year', 'Cả năm'],
+                    ] as const).map(([preset, lbl]) => (
+                      <button
+                        key={preset}
+                        type="button"
+                        onClick={() => applyPreset(preset, true)}
+                        className="px-2.5 py-1 rounded-lg text-slate-600 hover:bg-[#EFF6FF] hover:text-[#1D4ED8] transition cursor-pointer"
                       >
                         {lbl}
                       </button>
-                    );
-                  })}
+                    ))}
+                  </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => applyDimensionsNow({ ...appliedDimensions, excludeSafeNewCust: !appliedDimensions.excludeSafeNewCust })}
-                  className={`px-2.5 py-1 rounded-lg font-semibold border transition cursor-pointer ${
-                    appliedDimensions.excludeSafeNewCust
-                      ? 'bg-purple-600 text-white border-purple-600 shadow-2xs'
-                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                  }`}
-                  title="Chuẩn KH mới: HĐ ngoài Safe đầu tiên trong kỳ >= 1 triệu VNĐ"
-                >
-                  {appliedDimensions.excludeSafeNewCust ? '✓ ' : ''}KH mới (≥ 1Tr)
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => applyDimensionsNow({ ...appliedDimensions, excludeGhost: !appliedDimensions.excludeGhost })}
-                  className={`px-2.5 py-1 rounded-lg font-semibold border transition cursor-pointer ${
-                    appliedDimensions.excludeGhost
-                      ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-2xs font-bold'
-                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                  }`}
-                  title="Loại trừ các hợp đồng ma khỏi mọi chỉ số"
-                >
-                  {appliedDimensions.excludeGhost ? '✓ ' : ''}Loại HĐ ma
-                </button>
-
-                {activeNode && (
-                  <button
-                    type="button"
-                    onClick={() => changeReportView({ view: 'subtree' })}
-                    className="inline-flex items-center gap-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200 px-2.5 py-1 font-semibold cursor-pointer"
-                  >
-                    👥 {activeNode.label} ({reportView.view === 'subtree' ? 'Cả CN' : 'Cá nhân'}) <X size={12} />
-                  </button>
-                )}
-
-                {dimFields.flatMap(([field, label]) =>
-                  appliedDimensions[field].map(opt => (
-                    <button
-                      key={`${field}:${opt}`}
-                      type="button"
-                      onClick={() => applyDimensionsNow({ ...appliedDimensions, [field]: appliedDimensions[field].filter(x => x !== opt) })}
-                      className="inline-flex items-center gap-1 rounded-full bg-blue-50 text-blue-800 border border-blue-200 px-2.5 py-1 font-semibold cursor-pointer"
-                    >
-                      {label}: {stMap[opt] || opt} <X size={12} />
-                    </button>
-                  ))
-                )}
-
-                {totalActive > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      applyDimensionsNow(emptyDimensions());
-                      if (reportView.viewEmployeeId) changeReportView({ view: 'subtree' });
-                    }}
-                    className="ml-auto text-rose-600 hover:underline font-semibold cursor-pointer"
-                  >
-                    Đặt lại bộ lọc
-                  </button>
-                )}
-              </div>
-            );
-          })()}
-        </>}
-
-        {activeTab === 'home_v1' && (
-          <HomeDashboard
-            reportView={reportView}
-            appliedDimensions={appliedDimensions}
-            datasetId={applied.datasetId || undefined}
-            refreshKey={refreshKey}
-            onOpenContracts={(basis, from, to, asOf) => {
-              setContractBasis(basis);
-              applyDateRangeNow(from, to, asOf);
-              setActiveTab('contracts_v1');
-            }}
-            onOpenOverview={() => setActiveTab('kpi_v1')}
-            onDrillDown={drillDown}
-          />
-        )}
-
-        {activeTab === 'kpi_v1' && (
-          <div>
-            {/* Section Header (Kết quả tổng quan — Chọn kỳ & ngày chốt) */}
-            <div className="flex flex-wrap items-center justify-between gap-2 mb-3.5 pb-2.5 border-b border-slate-200">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wide">
-                  Kết quả tổng quan
-                </h2>
-                <div className="inline-flex flex-wrap items-center gap-1 bg-slate-100 p-0.5 rounded-lg border border-slate-200 text-[11px] font-bold">
-                  {([
-                    ['today', 'Hôm nay'],
-                    ['this_month', 'Tháng này'],
-                    ['last_month', 'Tháng trước'],
-                    ['this_quarter', 'Quý này'],
-                    ['this_year', 'Cả năm'],
-                  ] as const).map(([preset, lbl]) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => applyPreset(preset, true)}
-                      className="px-2 py-1 rounded-md text-slate-600 hover:bg-white hover:text-blue-700 transition cursor-pointer"
-                    >
-                      {lbl}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setFilterModalTab('time')}
-                  className="inline-flex items-center gap-1.5 text-xs bg-slate-100 hover:bg-blue-50 border border-slate-200 hover:border-blue-300 text-slate-700 hover:text-blue-800 font-bold px-2.5 py-1 rounded-lg transition cursor-pointer tabular-nums"
-                  title="Chọn khoảng thời gian & ngày chốt (Phím T)"
-                >
-                  <Calendar size={12} />
-                  <span>{applied.fromDate} → {applied.toDate}</span>
-                </button>
-                <span className="text-xs bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold px-2.5 py-1 rounded-lg tabular-nums">
-                  Chốt: {applied.asOfDate}
-                </span>
-                {selectedDatasetId && (
-                  <span className="text-xs bg-purple-50 border border-purple-200 text-purple-800 font-bold px-2.5 py-1 rounded-lg">
-                    Bản chốt: {selectedDatasetId.substring(0, 8)}...
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* 7 Core KPI Cards */}
-            {kpiError ? (
-              <div role="alert" className="p-4 rounded-xl bg-rose-50 text-rose-800">
-                {kpiError} <button onClick={() => setRefreshKey(n => n + 1)} className="underline font-semibold cursor-pointer">Thử lại</button>
-              </div>
-            ) : (
-              <KpiCardsV1
-                kpiData={kpiData}
-                loading={kpiLoading}
-                excludeSafeNewCust={appliedDimensions.excludeSafeNewCust}
-                earlyLiquidationMaxDays={appliedDimensions.earlyLiquidationMaxDays ?? 5}
-                onOpenDetails={basis => { setContractBasis(basis); setActiveTab('contracts_v1'); }}
-              />
-            )}
-
-            <div className="flex justify-end mb-3"><button onClick={() => setActiveTab('trend_v1')} className="text-xs font-bold text-blue-700 hover:underline cursor-pointer">Phân tích chi tiết →</button></div>
-            {/* Embedded Trend & Pivot */}
-            <TrendAndPivotSection compact refreshKey={refreshKey} onDrillDown={drillDown} {...appliedDimensions} fromDate={applied.fromDate} toDate={applied.toDate} asOfDate={applied.asOfDate} datasetId={applied.datasetId || undefined} {...reportView} />
-          </div>
-        )}
-
-        {activeTab === 'trend_v1' && (
-          <TrendAndPivotSection refreshKey={refreshKey} onDrillDown={drillDown} {...appliedDimensions} fromDate={applied.fromDate} toDate={applied.toDate} asOfDate={applied.asOfDate} datasetId={applied.datasetId || undefined} {...reportView} />
-        )}
-
-        {activeTab === 'contracts_v1' && (
-          <ContractsTableV1
-            basis={contractBasis}
-            isAdmin={isAdmin}
-            refreshKey={refreshKey}
-            onBasisChange={setContractBasis}
-            onGhostToggled={() => setRefreshKey(n => n + 1)}
-            asOfDate={applied.asOfDate}
-            {...appliedDimensions}
-            fromDate={applied.fromDate}
-            toDate={applied.toDate}
-            datasetId={applied.datasetId || undefined}
-            {...reportView}
-          />
-        )}
-
-        {activeTab === 'stocks_v1' && (
-          <StocksSection refreshKey={refreshKey} fromDate={applied.fromDate} toDate={applied.toDate} datasetId={applied.datasetId || undefined} {...reportView} />
-        )}
-
-        {activeTab === 'org_tree_v1' && (
-          <OrgTreeSection refreshKey={refreshKey} asOfDate={applied.asOfDate} isAdmin={isAdmin} datasetId={applied.datasetId || undefined} {...reportView} onViewNode={id => {
-            const node = scopeNodes.find(n => n.id === id);
-            changeReportView({ viewEmployeeId: id, view: node?.canViewSubtree ? 'subtree' : 'self' });
-            setActiveTab('kpi_v1');
-          }} />
-        )}
-
-        {activeTab === 'users' && isAdmin && (
-          <UserManagement branches={branches} />
-        )}
-
-        {activeTab === 'permissions' && isAdmin && (
-          <PermissionsPage />
-        )}
-      </main>
-
-      {/* 3b. Floating Bottom Taskbar Dock (Phím tắt: F / T / S / Esc) */}
-      {['home_v1', 'kpi_v1', 'trend_v1', 'contracts_v1', 'stocks_v1', 'org_tree_v1'].includes(activeTab) && (() => {
-        const isHome = activeTab === 'home_v1';
-        const selectedNode = scopeNodes.find(n => n.id === reportView.viewEmployeeId);
-        const dimCount = countActiveFilters(appliedDimensions);
-        const hasPending =
-          !isHome && (
-            fromDate !== applied.fromDate ||
-            toDate !== applied.toDate ||
-            asOfDate !== applied.asOfDate ||
-            selectedDatasetId !== applied.datasetId
-          ) || JSON.stringify(dimensions) !== JSON.stringify(appliedDimensions);
-
-        return (
-          <footer className="sticky bottom-0 z-40 w-full bg-[#0b1120]/95 backdrop-blur-md border-t border-slate-800 text-white px-4 sm:px-5 py-2 shadow-[0_-4px_20px_rgba(15,23,42,0.18)]">
-            <div className="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-2 text-xs">
-              <div className="hidden lg:flex items-center gap-2.5 text-slate-400">
-                {isHome ? (
-                  <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-400">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                    <span>Trang chủ · Hôm nay & Tháng hiện tại</span>
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5">
-                    <Landmark size={13} className="text-emerald-400" />
-                    <span>Chốt: <strong className="text-emerald-400 tabular-nums">{fmtFullDate(applied.asOfDate)}</strong></span>
-                  </span>
-                )}
-                {dateCoverage?.minDate && dateCoverage?.maxDate && (
-                  <span
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-800/80 border border-slate-700/70 text-slate-300 font-semibold tabular-nums cursor-default"
-                    title={`Dữ liệu có sẵn: ${fmtFullDate(dateCoverage.minDate)} → ${fmtFullDate(dateCoverage.maxDate)}`}
-                  >
-                    <Database size={12} className="text-slate-400" />
-                    <span>{dateCoverage.totalContracts.toLocaleString('vi-VN')} HĐ</span>
-                  </span>
-                )}
-              </div>
-
-              <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 ml-auto mr-auto lg:mr-0">
-                {!isHome && (
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setFilterModalTab('time')}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700/80 text-slate-100 font-semibold transition cursor-pointer tabular-nums"
-                    title={`Kỳ: ${applied.fromDate} → ${applied.toDate} (Phím T)`}
+                    className="inline-flex items-center gap-1.5 text-xs bg-white hover:bg-[#EFF6FF] border border-slate-200 hover:border-[#BFDBFE] text-[#0F294A] hover:text-[#1D4ED8] font-semibold px-3 py-1.5 rounded-xl transition cursor-pointer tabular-nums"
+                    title="Chọn khoảng thời gian & ngày chốt (Phím T)"
                   >
-                    <Calendar size={13} className="text-blue-400" />
-                    <span>{fmtShortDate(applied.fromDate)} → {fmtShortDate(applied.toDate)}</span>
-                    <kbd className="hidden sm:inline-block px-1 py-0.5 text-[10px] font-mono bg-slate-700 text-slate-300 rounded">T</kbd>
+                    <Calendar size={13} className="text-[#1D4ED8]" />
+                    <span>
+                      {applied.fromDate} → {applied.toDate}
+                    </span>
                   </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setFilterModalTab('scope')}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700/80 text-slate-100 font-semibold transition cursor-pointer"
-                  title="Phạm vi nhân sự (Phím S)"
-                >
-                  <Users size={13} className="text-purple-400" />
-                  <span className="truncate max-w-[150px] sm:max-w-[200px]">
-                    {selectedNode
-                      ? `${selectedNode.label} (${selectedNode.source === 'CONTRACT' ? 'Sale HĐ' : reportView.view === 'subtree' ? 'Cả CN' : 'Cá nhân'})`
-                      : (isAdmin ? 'Toàn hệ thống' : 'Phạm vi của tôi')}
+                  <span className="inline-flex items-center gap-1.5 text-xs bg-emerald-50 border border-emerald-200 text-emerald-800 font-semibold px-3 py-1.5 rounded-xl tabular-nums">
+                    <Landmark size={13} />
+                    <span>Chốt: {applied.asOfDate}</span>
                   </span>
-                  <kbd className="hidden sm:inline-block px-1 py-0.5 text-[10px] font-mono bg-slate-700 text-slate-300 rounded">S</kbd>
-                </button>
+                  {selectedDatasetId && (
+                    <span className="text-xs bg-[#EFF6FF] border border-[#DBEAFE] text-[#1D4ED8] font-semibold px-3 py-1.5 rounded-xl">
+                      Bản chốt: {selectedDatasetId.substring(0, 8)}...
+                    </span>
+                  )}
+                </div>
+              </div>
 
-                <button
-                  type="button"
-                  onClick={() => setFilterModalTab('all')}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold transition cursor-pointer shadow-xs"
-                  title="Bộ lọc & Phạm vi (Phím F)"
-                >
-                  <SlidersHorizontal size={13} />
-                  <span>Lọc{dimCount > 0 ? ` (${dimCount})` : ''}</span>
-                  <kbd className="hidden sm:inline-block px-1 py-0.5 text-[10px] font-mono bg-blue-700 text-blue-100 rounded">F</kbd>
-                </button>
-
-                {hasPending && (
-                  <button
-                    type="button"
-                    onClick={applyFilters}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition cursor-pointer animate-pulse"
-                  >
-                    <RefreshCw size={12} />
-                    <span>Áp dụng</span>
+              {/* 7 Core KPI Cards */}
+              {kpiError ? (
+                <div role="alert" className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-sm">
+                  {kpiError}{' '}
+                  <button onClick={() => setRefreshKey((n) => n + 1)} className="underline font-semibold cursor-pointer">
+                    Thử lại
                   </button>
-                )}
+                </div>
+              ) : (
+                <KpiCardsV1
+                  kpiData={kpiData}
+                  loading={kpiLoading}
+                  excludeSafeNewCust={appliedDimensions.excludeSafeNewCust}
+                  earlyLiquidationMaxDays={appliedDimensions.earlyLiquidationMaxDays ?? 5}
+                  onOpenDetails={(basis) => {
+                    setContractBasis(basis);
+                    setActiveTab('contracts_v1');
+                  }}
+                />
+              )}
 
+              <div className="flex justify-end mb-3">
                 <button
-                  type="button"
-                  onClick={() => setRefreshKey(n => n + 1)}
-                  className="inline-flex items-center justify-center p-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700/80 text-slate-200 transition cursor-pointer"
-                  title="Làm mới dữ liệu"
-                  aria-label="Làm mới dữ liệu"
+                  onClick={() => setActiveTab('trend_v1')}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-[#1D4ED8] hover:underline cursor-pointer"
                 >
-                  <RefreshCw size={14} className={kpiLoading ? 'animate-spin' : ''} />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setHelpOpen(true)}
-                  className="inline-flex items-center gap-1 px-2 py-1.5 rounded-xl bg-slate-800/90 hover:bg-slate-700 border border-slate-700/80 text-slate-200 font-semibold transition cursor-pointer"
-                  title="Hướng dẫn & Phím tắt (Phím H)"
-                  aria-label="Hướng dẫn sử dụng"
-                >
-                  <HelpCircle size={14} className="text-slate-300" />
-                  <kbd className="hidden sm:inline-block px-1 py-0.5 text-[10px] font-mono bg-slate-700 text-slate-300 rounded">H</kbd>
+                  <span>Phân tích chi tiết</span>
+                  <ArrowRight size={13} />
                 </button>
               </div>
-            </div>
-          </footer>
-        );
-      })()}
 
-      {/* 3c. Setup Modal for Time, Scope & Dimension Filters */}
-      {filterModalTab !== null && ['home_v1', 'kpi_v1', 'trend_v1', 'contracts_v1', 'stocks_v1', 'org_tree_v1'].includes(activeTab) && (
+              {/* Embedded Trend & Pivot */}
+              <TrendAndPivotSection
+                compact
+                refreshKey={refreshKey}
+                onDrillDown={drillDown}
+                {...appliedDimensions}
+                fromDate={applied.fromDate}
+                toDate={applied.toDate}
+                asOfDate={applied.asOfDate}
+                datasetId={applied.datasetId || undefined}
+                {...reportView}
+              />
+            </div>
+          )}
+
+          {activeTab === 'trend_v1' && (
+            <TrendAndPivotSection
+              refreshKey={refreshKey}
+              onDrillDown={drillDown}
+              {...appliedDimensions}
+              fromDate={applied.fromDate}
+              toDate={applied.toDate}
+              asOfDate={applied.asOfDate}
+              datasetId={applied.datasetId || undefined}
+              {...reportView}
+            />
+          )}
+
+          {activeTab === 'contracts_v1' && (
+            <ContractsTableV1
+              basis={contractBasis}
+              isAdmin={isAdmin}
+              refreshKey={refreshKey}
+              onBasisChange={setContractBasis}
+              onGhostToggled={() => setRefreshKey((n) => n + 1)}
+              asOfDate={applied.asOfDate}
+              {...appliedDimensions}
+              fromDate={applied.fromDate}
+              toDate={applied.toDate}
+              datasetId={applied.datasetId || undefined}
+              {...reportView}
+            />
+          )}
+
+          {activeTab === 'stocks_v1' && (
+            <StocksSection
+              refreshKey={refreshKey}
+              fromDate={applied.fromDate}
+              toDate={applied.toDate}
+              datasetId={applied.datasetId || undefined}
+              {...reportView}
+            />
+          )}
+
+          {activeTab === 'org_tree_v1' && (
+            <OrgTreeSection
+              refreshKey={refreshKey}
+              asOfDate={applied.asOfDate}
+              isAdmin={isAdmin}
+              datasetId={applied.datasetId || undefined}
+              {...reportView}
+              onViewNode={(id) => {
+                const node = scopeNodes.find((n) => n.id === id);
+                changeReportView({ viewEmployeeId: id, view: node?.canViewSubtree ? 'subtree' : 'self' });
+                setActiveTab('kpi_v1');
+              }}
+            />
+          )}
+
+          {activeTab === 'users' && isAdmin && <UserManagement branches={branches} />}
+
+          {activeTab === 'permissions' && isAdmin && <PermissionsPage />}
+        </main>
+      </div>
+
+      {/* 4. Setup Modal for Time, Scope & Dimension Filters */}
+      {filterModalTab !== null && isReportingTab && (
         <div
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6"
+          className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-6"
           onClick={() => setFilterModalTab(null)}
         >
           <div
@@ -910,68 +884,111 @@ export default function App() {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Modal Header */}
-            <div className="px-5 py-3.5 border-b border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="text-base font-extrabold text-slate-900">🎛️ Thiết lập Bộ lọc & Phạm vi</span>
-                <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 text-xs">
+            <div className="px-5 py-3.5 border-b border-slate-200 bg-white flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-[#EFF6FF] text-[#1D4ED8] flex items-center justify-center">
+                    <SlidersHorizontal size={16} />
+                  </div>
+                  <span className="text-base font-bold text-[#0F294A]">Thiết lập Bộ lọc &amp; Phạm vi</span>
+                </div>
+                <div className="flex items-center gap-1 bg-slate-100 border border-slate-200 rounded-xl p-1 text-xs">
                   <button
                     type="button"
                     onClick={() => setFilterModalTab('all')}
-                    className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${filterModalTab === 'all' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
+                      filterModalTab === 'all' ? 'bg-[#1D4ED8] text-white' : 'text-slate-600 hover:bg-white'
+                    }`}
                   >
                     Tất cả (F)
                   </button>
                   <button
                     type="button"
                     onClick={() => setFilterModalTab('time')}
-                    className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${filterModalTab === 'time' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
+                      filterModalTab === 'time' ? 'bg-[#1D4ED8] text-white' : 'text-slate-600 hover:bg-white'
+                    }`}
                   >
                     Thời gian (T)
                   </button>
                   <button
                     type="button"
                     onClick={() => setFilterModalTab('scope')}
-                    className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${filterModalTab === 'scope' ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                    className={`px-2.5 py-1 rounded-lg font-semibold transition cursor-pointer ${
+                      filterModalTab === 'scope' ? 'bg-[#1D4ED8] text-white' : 'text-slate-600 hover:bg-white'
+                    }`}
                   >
-                    Nhân sự & Lọc (S)
+                    Nhân sự &amp; Lọc (S)
                   </button>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setFilterModalTab(null)}
-                className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 transition cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
               >
-                Đóng (Esc) ✕
+                <span>Đóng (Esc)</span>
+                <X size={14} />
               </button>
             </div>
 
             {/* Modal Body */}
-            <div className="p-5 overflow-y-auto space-y-6">
+            <div className="p-5 overflow-y-auto space-y-6 bg-[#F8FAFC]/50">
               {(filterModalTab === 'all' || filterModalTab === 'time') && (
-                <section className="space-y-3 bg-slate-50/70 border border-slate-200 rounded-2xl p-4">
+                <section className="space-y-3 bg-white border border-slate-200 rounded-2xl p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <h3 className="font-bold text-sm sm:text-base text-slate-900">📅 1. Thời gian & Bản chốt dữ liệu</h3>
+                    <h3 className="font-bold text-sm sm:text-base text-[#0F294A] flex items-center gap-2">
+                      <Calendar size={17} className="text-[#1D4ED8]" />
+                      <span>1. Thời gian &amp; Bản chốt dữ liệu</span>
+                    </h3>
                     {dateCoverage?.minDate && dateCoverage?.maxDate && (
-                      <span className="text-xs text-slate-500">
-                        Dữ liệu hiện có: <strong>{dateCoverage.minDate}</strong> → <strong>{dateCoverage.maxDate}</strong> ({dateCoverage.totalContracts} HĐ)
+                      <span className="text-xs text-slate-500 tabular-nums">
+                        Dữ liệu hiện có: <strong className="text-[#0F294A]">{dateCoverage.minDate}</strong> →{' '}
+                        <strong className="text-[#0F294A]">{dateCoverage.maxDate}</strong> (
+                        {dateCoverage.totalContracts.toLocaleString('vi-VN')} HĐ)
                       </span>
                     )}
                   </div>
 
                   {/* Quick Date Presets */}
                   <div className="flex flex-wrap items-center gap-1.5">
-                    <button onClick={() => applyPreset('today')} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition cursor-pointer">Hôm nay</button>
-                    <button onClick={() => applyPreset('this_month')} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition cursor-pointer">Tháng này</button>
-                    <button onClick={() => applyPreset('last_month')} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition cursor-pointer">Tháng trước</button>
-                    <button onClick={() => applyPreset('this_quarter')} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition cursor-pointer">Quý này</button>
-                    <button onClick={() => applyPreset('this_year')} className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 transition cursor-pointer">Cả năm</button>
+                    <button
+                      onClick={() => applyPreset('today')}
+                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-50 border border-slate-200 hover:bg-[#EFF6FF] hover:border-[#BFDBFE] text-slate-700 hover:text-[#1D4ED8] transition cursor-pointer"
+                    >
+                      Hôm nay
+                    </button>
+                    <button
+                      onClick={() => applyPreset('this_month')}
+                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-50 border border-slate-200 hover:bg-[#EFF6FF] hover:border-[#BFDBFE] text-slate-700 hover:text-[#1D4ED8] transition cursor-pointer"
+                    >
+                      Tháng này
+                    </button>
+                    <button
+                      onClick={() => applyPreset('last_month')}
+                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-50 border border-slate-200 hover:bg-[#EFF6FF] hover:border-[#BFDBFE] text-slate-700 hover:text-[#1D4ED8] transition cursor-pointer"
+                    >
+                      Tháng trước
+                    </button>
+                    <button
+                      onClick={() => applyPreset('this_quarter')}
+                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-50 border border-slate-200 hover:bg-[#EFF6FF] hover:border-[#BFDBFE] text-slate-700 hover:text-[#1D4ED8] transition cursor-pointer"
+                    >
+                      Quý này
+                    </button>
+                    <button
+                      onClick={() => applyPreset('this_year')}
+                      className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-50 border border-slate-200 hover:bg-[#EFF6FF] hover:border-[#BFDBFE] text-slate-700 hover:text-[#1D4ED8] transition cursor-pointer"
+                    >
+                      Cả năm
+                    </button>
                     {dateCoverage && dateCoverage.months.length > 0 && (
                       <>
                         <button
                           onClick={() => {
                             const latest = dateCoverage.months[0];
-                            const targetAsOf = dateCoverage.maxDate && dateCoverage.maxDate < latest.toDate ? dateCoverage.maxDate : latest.toDate;
+                            const targetAsOf =
+                              dateCoverage.maxDate && dateCoverage.maxDate < latest.toDate ? dateCoverage.maxDate : latest.toDate;
                             applyDateRangeNow(latest.fromDate, latest.toDate, targetAsOf);
                           }}
                           className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer"
@@ -981,25 +998,26 @@ export default function App() {
                         {dateCoverage.minDate && dateCoverage.maxDate && (
                           <button
                             onClick={() => applyDateRangeNow(dateCoverage.minDate!, dateCoverage.maxDate!, dateCoverage.maxDate!)}
-                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 transition cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-[#EFF6FF] hover:bg-blue-100 text-[#1D4ED8] border border-[#BFDBFE] transition cursor-pointer"
                           >
                             Toàn bộ DL
                           </button>
                         )}
                         <select
                           aria-label="Chọn nhanh tháng có dữ liệu"
-                          value={dateCoverage.months.find(m => m.fromDate === fromDate && m.toDate === toDate)?.monthKey || ''}
+                          value={dateCoverage.months.find((m) => m.fromDate === fromDate && m.toDate === toDate)?.monthKey || ''}
                           onChange={(e) => {
-                            const m = dateCoverage.months.find(x => x.monthKey === e.target.value);
+                            const m = dateCoverage.months.find((x) => x.monthKey === e.target.value);
                             if (m) {
-                              const targetAsOf = dateCoverage.maxDate && dateCoverage.maxDate < m.toDate ? dateCoverage.maxDate : m.toDate;
+                              const targetAsOf =
+                                dateCoverage.maxDate && dateCoverage.maxDate < m.toDate ? dateCoverage.maxDate : m.toDate;
                               applyDateRangeNow(m.fromDate, m.toDate, targetAsOf);
                             }
                           }}
-                          className="border border-emerald-200 bg-white text-emerald-900 rounded-lg px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                          className="border border-slate-200 bg-white text-[#0F294A] rounded-lg px-2.5 py-1 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/20"
                         >
                           <option value="">Tháng có DL ({dateCoverage.months.length})…</option>
-                          {dateCoverage.months.map(m => (
+                          {dateCoverage.months.map((m) => (
                             <option key={m.monthKey} value={m.monthKey}>
                               Tháng {m.label} ({m.contractCount} HĐ)
                             </option>
@@ -1011,45 +1029,49 @@ export default function App() {
 
                   {/* Date Pickers + Dataset */}
                   <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex flex-wrap items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2">
+                    <div className="flex flex-wrap items-center gap-2 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2">
                       <span className="font-semibold text-slate-700 text-xs">Ngày ký trong kỳ:</span>
                       <input
-                        type="date" aria-label="Từ ngày"
+                        type="date"
+                        aria-label="Từ ngày"
                         value={fromDate}
                         onChange={(e) => setFromDate(e.target.value)}
-                        className="bg-slate-50 border border-slate-200 rounded-md px-2 py-1 text-xs text-slate-800 font-semibold"
+                        className="bg-white border border-slate-200 rounded-md px-2 py-1 text-xs text-[#0F294A] font-semibold tabular-nums"
                       />
-                      <span className="text-slate-400 font-bold">➔</span>
+                      <span className="text-slate-400 font-bold">→</span>
                       <input
-                        type="date" aria-label="Đến ngày"
+                        type="date"
+                        aria-label="Đến ngày"
                         value={toDate}
                         onChange={(e) => {
                           setToDate(e.target.value);
                           setAsOfDate(e.target.value);
                         }}
-                        className="bg-slate-50 border border-slate-200 rounded-md px-2 py-1 text-xs text-slate-800 font-semibold"
+                        className="bg-white border border-slate-200 rounded-md px-2 py-1 text-xs text-[#0F294A] font-semibold tabular-nums"
                       />
                     </div>
 
                     <div className="flex items-center gap-2 bg-emerald-50/70 border border-emerald-200 rounded-xl px-3 py-2">
-                      <span className="font-bold text-emerald-900 text-xs">🏦 Chốt số dư:</span>
+                      <Landmark size={14} className="text-emerald-700" />
+                      <span className="font-semibold text-emerald-900 text-xs">Chốt số dư:</span>
                       <input
-                        type="date" aria-label="Ngày chốt số dư"
+                        type="date"
+                        aria-label="Ngày chốt số dư"
                         value={asOfDate}
                         onChange={(e) => setAsOfDate(e.target.value)}
-                        className="bg-white border border-emerald-200 rounded-md px-2 py-1 text-xs text-emerald-950 font-bold"
+                        className="bg-white border border-emerald-200 rounded-md px-2 py-1 text-xs text-emerald-950 font-semibold tabular-nums"
                       />
                     </div>
 
                     <select
                       value={selectedDatasetId}
                       onChange={(e) => setSelectedDatasetId(e.target.value)}
-                      className="border border-slate-300 bg-white text-slate-800 rounded-xl px-3 py-2 text-xs font-semibold"
+                      className="border border-slate-200 bg-white text-[#0F294A] rounded-xl px-3 py-2 text-xs font-semibold"
                     >
                       <option value="">Dữ liệu hiện tại</option>
                       {datasets.map((d: any) => (
                         <option key={d.id} value={d.id}>
-                          📦 {d.datasetCode} - {d.title} (Chốt: {d.cutoffDate})
+                          {d.datasetCode} - {d.title} (Chốt: {d.cutoffDate})
                         </option>
                       ))}
                     </select>
@@ -1065,8 +1087,16 @@ export default function App() {
                   onChange={changeReportView}
                   loading={scopeLoading}
                   error={scopeError}
-                  onRetry={() => setScopeRevision(n => n + 1)}
-                  defaultLabel={isAdmin ? 'Toàn bộ phạm vi được cấp' : `Phạm vi của tôi${currentUser.scopeNodeName || currentUser.branchAccess ? ` · ${currentUser.scopeNodeName || currentUser.branchAccess}` : ''}`}
+                  onRetry={() => setScopeRevision((n) => n + 1)}
+                  defaultLabel={
+                    isAdmin
+                      ? 'Toàn bộ phạm vi được cấp'
+                      : `Phạm vi của tôi${
+                          currentUser.scopeNodeName || currentUser.branchAccess
+                            ? ` · ${currentUser.scopeNodeName || currentUser.branchAccess}`
+                            : ''
+                        }`
+                  }
                   showDimensions={activeTab !== 'stocks_v1' && activeTab !== 'org_tree_v1'}
                   dimensions={dimensions}
                   appliedDimensions={appliedDimensions}
@@ -1082,15 +1112,19 @@ export default function App() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-3">
+            <div className="px-5 py-3 border-t border-slate-200 bg-white flex items-center justify-between gap-3">
               <span className="text-xs text-slate-500 hidden sm:inline">
-                Phím tắt: <kbd className="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-[11px]">F</kbd> Bộ lọc · <kbd className="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-[11px]">T</kbd> Thời gian · <kbd className="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-[11px]">S</kbd> Nhân sự · <kbd className="px-1.5 py-0.5 bg-white border border-slate-300 rounded text-[11px]">Esc</kbd> Đóng
+                Phím tắt: <kbd className="px-1.5 py-0.5 bg-slate-50 border border-slate-300 rounded text-[11px]">F</kbd>{' '}
+                Bộ lọc · <kbd className="px-1.5 py-0.5 bg-slate-50 border border-slate-300 rounded text-[11px]">T</kbd>{' '}
+                Thời gian · <kbd className="px-1.5 py-0.5 bg-slate-50 border border-slate-300 rounded text-[11px]">S</kbd>{' '}
+                Nhân sự · <kbd className="px-1.5 py-0.5 bg-slate-50 border border-slate-300 rounded text-[11px]">Esc</kbd>{' '}
+                Đóng
               </span>
               <div className="flex items-center gap-2 ml-auto">
                 <button
                   type="button"
                   onClick={() => setFilterModalTab(null)}
-                  className="px-3.5 py-1.5 rounded-xl border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 text-xs font-semibold transition cursor-pointer"
+                  className="px-3.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition cursor-pointer"
                 >
                   Đóng
                 </button>
@@ -1100,9 +1134,10 @@ export default function App() {
                     applyFilters();
                     setFilterModalTab(null);
                   }}
-                  className="px-4 py-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-[#1D4ED8] hover:bg-[#1E40AF] text-white text-xs font-semibold shadow-xs transition cursor-pointer"
                 >
-                  🔄 Áp dụng & Đóng
+                  <RefreshCw size={13} />
+                  <span>Áp dụng &amp; Đóng</span>
                 </button>
               </div>
             </div>
@@ -1110,10 +1145,10 @@ export default function App() {
         </div>
       )}
 
-      {/* 3d. Help & Keyboard Shortcuts Modal */}
+      {/* 5. Help & Keyboard Shortcuts Modal */}
       {helpOpen && (
         <div
-          className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6"
+          className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-6"
           onClick={() => setHelpOpen(false)}
         >
           <div
@@ -1123,67 +1158,101 @@ export default function App() {
             className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="px-5 py-3.5 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
-              <h2 className="text-base font-extrabold text-slate-900">❓ Hướng dẫn sử dụng & Phím tắt</h2>
+            <div className="px-5 py-3.5 border-b border-slate-200 bg-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-[#EFF6FF] text-[#1D4ED8] flex items-center justify-center">
+                  <HelpCircle size={17} />
+                </div>
+                <h2 className="text-base font-bold text-[#0F294A]">Hướng dẫn sử dụng &amp; Phím tắt</h2>
+              </div>
               <button
                 type="button"
                 onClick={() => setHelpOpen(false)}
-                className="px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 transition cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
               >
-                Đóng (Esc) ✕
+                <span>Đóng (Esc)</span>
+                <X size={14} />
               </button>
             </div>
 
             <div className="p-5 overflow-y-auto space-y-4 text-xs sm:text-sm text-slate-700">
               <div className="rounded-xl bg-slate-50 border border-slate-200 p-3.5 space-y-2">
-                <h3 className="font-bold text-slate-900">1. Phím tắt trên màn hình báo cáo</h3>
+                <h3 className="font-bold text-[#0F294A]">1. Phím tắt trên màn hình báo cáo</h3>
                 <div className="grid sm:grid-cols-2 gap-2 text-xs">
                   <div className="flex items-center justify-between bg-white border border-slate-200 rounded-lg px-3 py-2">
-                    <span>Mở toàn bộ Bộ lọc & Phạm vi</span>
-                    <kbd className="px-2 py-0.5 font-mono font-bold bg-slate-100 border border-slate-300 rounded">F</kbd>
+                    <span>Mở toàn bộ Bộ lọc &amp; Phạm vi</span>
+                    <kbd className="px-2 py-0.5 font-mono font-bold bg-[#EFF6FF] text-[#1D4ED8] border border-[#DBEAFE] rounded">
+                      F
+                    </kbd>
                   </div>
                   <div className="flex items-center justify-between bg-white border border-slate-200 rounded-lg px-3 py-2">
-                    <span>Chọn Thời gian & Bản chốt</span>
-                    <kbd className="px-2 py-0.5 font-mono font-bold bg-slate-100 border border-slate-300 rounded">T</kbd>
+                    <span>Chọn Thời gian &amp; Bản chốt</span>
+                    <kbd className="px-2 py-0.5 font-mono font-bold bg-[#EFF6FF] text-[#1D4ED8] border border-[#DBEAFE] rounded">
+                      T
+                    </kbd>
                   </div>
                   <div className="flex items-center justify-between bg-white border border-slate-200 rounded-lg px-3 py-2">
                     <span>Chọn Nhân sự (HR / Sale HĐ)</span>
-                    <kbd className="px-2 py-0.5 font-mono font-bold bg-slate-100 border border-slate-300 rounded">S</kbd>
+                    <kbd className="px-2 py-0.5 font-mono font-bold bg-[#EFF6FF] text-[#1D4ED8] border border-[#DBEAFE] rounded">
+                      S
+                    </kbd>
                   </div>
                   <div className="flex items-center justify-between bg-white border border-slate-200 rounded-lg px-3 py-2">
                     <span>Mở Hướng dẫn / Đóng cửa sổ</span>
                     <span className="space-x-1">
-                      <kbd className="px-2 py-0.5 font-mono font-bold bg-slate-100 border border-slate-300 rounded">H</kbd>
-                      <kbd className="px-2 py-0.5 font-mono font-bold bg-slate-100 border border-slate-300 rounded">Esc</kbd>
+                      <kbd className="px-2 py-0.5 font-mono font-bold bg-[#EFF6FF] text-[#1D4ED8] border border-[#DBEAFE] rounded">
+                        H
+                      </kbd>
+                      <kbd className="px-2 py-0.5 font-mono font-bold bg-slate-100 border border-slate-300 rounded">
+                        Esc
+                      </kbd>
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="rounded-xl bg-emerald-50/70 border border-emerald-200 p-3.5 space-y-1.5">
-                <h3 className="font-bold text-emerald-950">2. Lọc Thời gian thông minh (không cần tự mò ngày)</h3>
-                <ul className="list-disc pl-5 space-y-1 text-emerald-900">
-                  <li><strong>Tháng có DL gần nhất</strong>: Nhảy ngay về tháng mới nhất có phát sinh hợp đồng.</li>
-                  <li><strong>Toàn bộ DL</strong>: Xem toàn bộ dữ liệu từ ngày đầu tiên đến ngày mới nhất trong hệ thống.</li>
-                  <li><strong>Dropdown Tháng có DL</strong>: Liệt kê các tháng thực sự có hợp đồng kèm số lượng (VD: <em>Tháng 11/2026 (358 HĐ)</em>).</li>
-                  <li><strong>Chốt số dư</strong>: Là mốc ngày tính dư nợ/số dư tích lũy (độc lập với ngày ký trong kỳ).</li>
+              <div className="rounded-xl bg-[#EFF6FF]/70 border border-[#DBEAFE] p-3.5 space-y-1.5">
+                <h3 className="font-bold text-[#0F294A]">2. Lọc Thời gian thông minh</h3>
+                <ul className="list-disc pl-5 space-y-1 text-slate-700">
+                  <li>
+                    <strong>Tháng có DL gần nhất</strong>: Nhảy ngay về tháng mới nhất có phát sinh hợp đồng.
+                  </li>
+                  <li>
+                    <strong>Toàn bộ DL</strong>: Xem toàn bộ dữ liệu từ ngày đầu tiên đến ngày mới nhất trong hệ thống.
+                  </li>
+                  <li>
+                    <strong>Dropdown Tháng có DL</strong>: Liệt kê các tháng thực sự có hợp đồng kèm số lượng.
+                  </li>
+                  <li>
+                    <strong>Chốt số dư</strong>: Là mốc ngày tính dư nợ/số dư tích lũy (độc lập với ngày ký trong kỳ).
+                  </li>
                 </ul>
               </div>
 
-              <div className="rounded-xl bg-blue-50/70 border border-blue-200 p-3.5 space-y-1.5">
-                <h3 className="font-bold text-blue-950">3. Phân biệt Cây nhân sự (HR) & Sale HĐ</h3>
-                <ul className="list-disc pl-5 space-y-1 text-blue-900">
-                  <li><strong>Cây nhân sự (HR)</strong>: Nhân sự từ file Excel Nhân sự — có Chức vụ (GĐCN, TPKD, CVKD), Chi nhánh và chuyển đổi được giữa <strong>Doanh số chi nhánh / cấp dưới</strong> và <strong>Doanh số cá nhân</strong>.</li>
-                  <li><strong>Sale HĐ</strong>: Sale tự động nhận diện từ hợp đồng khi chưa có trong file Nhân sự — chỉ xem <strong>Doanh số cá nhân</strong>. Khi import file Nhân sự khớp mã, hệ thống tự nâng cấp sang <strong>Cây nhân sự</strong>.</li>
+              <div className="rounded-xl bg-slate-50 border border-slate-200 p-3.5 space-y-1.5">
+                <h3 className="font-bold text-[#0F294A]">3. Phân biệt Cây nhân sự (HR) &amp; Sale HĐ</h3>
+                <ul className="list-disc pl-5 space-y-1 text-slate-700">
+                  <li>
+                    <strong>Cây nhân sự (HR)</strong>: Nhân sự từ file Excel Nhân sự — có Chức vụ (GĐCN, TPKD, CVKD), Chi nhánh và chuyển đổi được giữa <strong>Doanh số chi nhánh / cấp dưới</strong> và <strong>Doanh số cá nhân</strong>.
+                  </li>
+                  <li>
+                    <strong>Sale HĐ</strong>: Sale tự động nhận diện từ hợp đồng khi chưa có trong file Nhân sự — chỉ xem <strong>Doanh số cá nhân</strong>.
+                  </li>
                 </ul>
               </div>
 
-              <div className="rounded-xl bg-amber-50/80 border border-amber-200 p-3.5 space-y-1.5">
-                <h3 className="font-bold text-amber-950">4. Bộ lọc nghiệp vụ thông minh & Hợp đồng ma</h3>
+              <div className="rounded-xl bg-amber-50/70 border border-amber-200 p-3.5 space-y-1.5">
+                <h3 className="font-bold text-amber-950">4. Bộ lọc nghiệp vụ thông minh &amp; Hợp đồng ma</h3>
                 <ul className="list-disc pl-5 space-y-1 text-amber-900">
-                  <li><strong>Loại HĐ ≤ 10 ngày</strong>: Tùy chọn loại trừ các HĐ duy trì thực tế ≤ 10 ngày ra khỏi doanh số.</li>
-                  <li><strong>KH mới (Ngoài Safe ≥ 1Tr)</strong>: Tùy chọn lọc số KH có HĐ khác Safe đầu tiên trong kỳ giá trị từ 1 triệu trở lên.</li>
-                  <li><strong>Hợp đồng ma</strong>: Đánh dấu trực tiếp trên bảng HĐ hoặc nạp từ Excel (nguồn số 6 trong <em>Import Data</em>). Dòng HĐ ma được tô nền vàng trên UI và khi xuất Excel, có thể bật/tắt loại trừ linh hoạt.</li>
+                  <li>
+                    <strong>Loại HĐ ≤ 5 / 10 ngày</strong>: Tùy chọn loại trừ các HĐ thanh lý sớm ra khỏi doanh số.
+                  </li>
+                  <li>
+                    <strong>KH mới (Ngoài Safe ≥ 1Tr)</strong>: Tùy chọn lọc số KH có HĐ khác Safe đầu tiên trong kỳ từ 1 triệu trở lên.
+                  </li>
+                  <li>
+                    <strong>Hợp đồng ma</strong>: Đánh dấu trực tiếp trên bảng HĐ hoặc nạp từ Excel (nguồn số 6). Dòng HĐ ma được tô nền vàng trên UI và khi xuất Excel để đối soát.
+                  </li>
                 </ul>
               </div>
             </div>
@@ -1192,7 +1261,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setHelpOpen(false)}
-                className="px-4 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition cursor-pointer"
+                className="px-4 py-1.5 rounded-xl bg-[#1D4ED8] hover:bg-[#1E40AF] text-white text-xs font-semibold transition cursor-pointer"
               >
                 Đã hiểu
               </button>
@@ -1201,14 +1270,14 @@ export default function App() {
         </div>
       )}
 
-      {/* 4. Import 5 Nguồn Modal */}
+      {/* 6. Import 6 Nguồn Modal */}
       {isAdmin && (
         <ImportV2Modal
           isOpen={isImportV2Open}
           onClose={() => setIsImportV2Open(false)}
           onSuccess={() => {
-            setScopeRevision(n => n + 1);
-            setRefreshKey(n => n + 1);
+            setScopeRevision((n) => n + 1);
+            setRefreshKey((n) => n + 1);
           }}
         />
       )}

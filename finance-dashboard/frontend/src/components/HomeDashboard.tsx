@@ -1,6 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import {
-  BadgeDollarSign, Landmark, FileText, Users, CalendarDays, ArrowRight
+  BadgeDollarSign,
+  Landmark,
+  FileText,
+  Users,
+  CalendarDays,
+  ArrowRight,
+  AlertCircle,
 } from 'lucide-react';
 import { apiV1 } from '../services/apiV1';
 import { DimensionFilters, KpiReportResponse, ReportView } from '../types/v1';
@@ -86,7 +92,11 @@ export const HomeDashboard: React.FC<Props> = ({
     if (!val) return '0 đ';
     const n = parseFloat(val);
     if (isNaN(n)) return '0 đ';
-    return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(n);
+    return new Intl.NumberFormat('vi-VN', {
+      style: 'currency',
+      currency: 'VND',
+      maximumFractionDigits: 0,
+    }).format(n);
   };
 
   const fmtCount = (val: number | null | undefined, ok: boolean) => {
@@ -105,8 +115,7 @@ export const HomeDashboard: React.FC<Props> = ({
       hasAccess: tAccess.revenue,
       basis: 'sales' as const,
       Icon: BadgeDollarSign,
-      iconCls: 'bg-blue-100/80 text-blue-700',
-      borderCls: 'border-blue-200/80 hover:border-blue-400',
+      featured: true,
     },
     {
       id: 'today_contracts',
@@ -115,8 +124,7 @@ export const HomeDashboard: React.FC<Props> = ({
       hasAccess: tAccess.revenue,
       basis: 'sales' as const,
       Icon: FileText,
-      iconCls: 'bg-amber-100/80 text-amber-700',
-      borderCls: 'border-amber-200/80 hover:border-amber-400',
+      featured: false,
     },
     {
       id: 'today_customers',
@@ -125,8 +133,7 @@ export const HomeDashboard: React.FC<Props> = ({
       hasAccess: tAccess.revenue,
       basis: 'sales' as const,
       Icon: Users,
-      iconCls: 'bg-purple-100/80 text-purple-700',
-      borderCls: 'border-purple-200/80 hover:border-purple-400',
+      featured: false,
     },
     {
       id: 'today_balance',
@@ -135,25 +142,28 @@ export const HomeDashboard: React.FC<Props> = ({
       hasAccess: tAccess.balance,
       basis: 'balance' as const,
       Icon: Landmark,
-      iconCls: 'bg-emerald-100/80 text-emerald-700',
-      borderCls: 'border-emerald-200/80 hover:border-emerald-400',
+      featured: true,
     },
   ];
 
   return (
     <div className="space-y-6">
       {error && (
-        <div role="alert" className="p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium">
-          {error}
+        <div
+          role="alert"
+          className="flex items-center gap-2 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs font-medium"
+        >
+          <AlertCircle size={15} className="text-rose-600 shrink-0" />
+          <span>{error}</span>
         </div>
       )}
 
       {/* 1. Hôm nay */}
       <section className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200">
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-200">
           <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
-            <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wide">
+            <span className="w-2 h-2 rounded-full bg-[#1D4ED8]" />
+            <h2 className="text-sm font-bold text-[#0F294A] uppercase tracking-wide tabular-nums">
               Hôm nay · {todayLabel}
             </h2>
           </div>
@@ -161,7 +171,7 @@ export const HomeDashboard: React.FC<Props> = ({
           <button
             type="button"
             onClick={onOpenOverview}
-            className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:text-blue-900 hover:underline cursor-pointer"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-[#1D4ED8] hover:text-[#1E40AF] hover:underline cursor-pointer"
           >
             <span>Xem theo khoảng ngày tùy chọn</span>
             <ArrowRight size={13} />
@@ -171,7 +181,7 @@ export const HomeDashboard: React.FC<Props> = ({
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="bg-white rounded-2xl p-4 border border-slate-200 animate-pulse h-20" />
+              <div key={i} className="bg-white rounded-xl p-4 border border-slate-200 animate-pulse h-20" />
             ))}
           </div>
         ) : (
@@ -181,17 +191,35 @@ export const HomeDashboard: React.FC<Props> = ({
               return (
                 <div
                   key={c.id}
+                  role={c.hasAccess ? 'button' : undefined}
+                  tabIndex={c.hasAccess ? 0 : undefined}
                   onClick={() => c.hasAccess && onOpenContracts(c.basis, today, today, today)}
-                  className={`bg-white rounded-2xl border ${c.borderCls} px-4 py-3.5 shadow-xs hover:shadow-md transition cursor-pointer flex items-center justify-between gap-3`}
+                  onKeyDown={(e) => {
+                    if ((e.key === 'Enter' || e.key === ' ') && c.hasAccess) {
+                      e.preventDefault();
+                      onOpenContracts(c.basis, today, today, today);
+                    }
+                  }}
+                  className={`group bg-white rounded-xl border px-4 py-3.5 transition-all duration-150 cursor-pointer flex items-center justify-between gap-3 ${
+                    c.featured
+                      ? 'border-[#BFDBFE] hover:border-[#1D4ED8] shadow-xs hover:shadow-sm'
+                      : 'border-slate-200/90 hover:border-[#BFDBFE] hover:shadow-xs'
+                  }`}
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="text-xs font-bold text-slate-500 truncate">{c.title}</div>
-                    <div className="text-xl font-black text-slate-900 tabular-nums truncate mt-1">
+                    <div className="text-xs font-semibold text-slate-500 truncate">{c.title}</div>
+                    <div className="text-xl font-extrabold text-[#0F294A] tabular-nums truncate mt-1">
                       {c.value}
                     </div>
                   </div>
-                  <div className={`w-10 h-10 rounded-xl ${c.iconCls} flex items-center justify-center shrink-0`}>
-                    <IconComp size={20} strokeWidth={2.2} />
+                  <div
+                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                      c.featured
+                        ? 'bg-[#1D4ED8] text-white'
+                        : 'bg-[#EFF6FF] text-[#1D4ED8] group-hover:bg-[#1D4ED8] group-hover:text-white'
+                    }`}
+                  >
+                    <IconComp size={19} strokeWidth={1.9} />
                   </div>
                 </div>
               );
@@ -202,10 +230,10 @@ export const HomeDashboard: React.FC<Props> = ({
 
       {/* 2. Tháng hiện tại (7 Chỉ Số KPI + Xu hướng tháng hiện tại) */}
       <section className="space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-slate-200">
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-slate-200">
           <div className="flex items-center gap-2">
-            <CalendarDays size={16} className="text-blue-600" />
-            <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-wide">
+            <CalendarDays size={16} className="text-[#1D4ED8]" />
+            <h2 className="text-sm font-bold text-[#0F294A] uppercase tracking-wide tabular-nums">
               {monthLabel} (01/{today.slice(5, 7)} → {todayLabel})
             </h2>
           </div>

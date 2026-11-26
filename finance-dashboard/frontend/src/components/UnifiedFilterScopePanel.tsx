@@ -212,7 +212,7 @@ export function UnifiedFilterScopePanel({
 
           {/* Dimension Filter Badge */}
           {showDimensions && activeFilterCount > 0 && (
-            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-[#EFF6FF] text-[#1D4ED8] border border-[#DBEAFE]">
               <SlidersHorizontal size={12} />
               <span>{activeFilterCount} điều kiện lọc</span>
             </span>
@@ -225,7 +225,7 @@ export function UnifiedFilterScopePanel({
             <button
               type="button"
               onClick={() => onChange({ view: 'subtree' })}
-              className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-700 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 border border-blue-200 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#1D4ED8] hover:text-[#1E40AF] bg-[#EFF6FF] hover:bg-blue-100 border border-[#DBEAFE] px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
             >
               <CornerUpLeft size={14} />
               <span>Về phạm vi của tôi</span>
@@ -235,7 +235,7 @@ export function UnifiedFilterScopePanel({
           <button
             type="button"
             onClick={toggleExpanded}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-300 px-3 py-1.5 rounded-lg shadow-2xs transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 hover:text-[#0F294A] bg-white hover:bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
             aria-expanded={isExpanded}
           >
             <span>{isExpanded ? 'Thu gọn' : 'Tùy chỉnh phạm vi & bộ lọc'}</span>
@@ -247,12 +247,12 @@ export function UnifiedFilterScopePanel({
 
       {/* 2. Collapsible Expanded Body */}
       {showBody && (
-        <div className={embedded ? 'space-y-5 bg-white' : 'border-t border-slate-200 p-4 sm:p-5 space-y-5 bg-white'}>
+        <div className={embedded ? 'space-y-5 bg-white rounded-2xl border border-slate-200 p-4' : 'border-t border-slate-200 p-4 sm:p-5 space-y-5 bg-white'}>
           {/* Section A: Phạm vi nhân sự / đơn vị */}
           <div className="space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2 text-slate-900">
-                <Users size={18} className="text-blue-600" />
+              <div className="flex items-center gap-2 text-[#0F294A]">
+                <Users size={17} className="text-[#1D4ED8]" />
                 <h3 className="font-bold text-sm sm:text-base">1. Phạm vi đang xem</h3>
               </div>
 
@@ -262,7 +262,7 @@ export function UnifiedFilterScopePanel({
                   onClick={() => setSourceFilter('ALL')}
                   className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors cursor-pointer ${
                     sourceFilter === 'ALL'
-                      ? 'bg-slate-800 text-white border-slate-800'
+                      ? 'bg-[#0F294A] text-white border-[#0F294A]'
                       : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
                   }`}
                 >
@@ -273,8 +273,8 @@ export function UnifiedFilterScopePanel({
                   onClick={() => setSourceFilter('HR')}
                   className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors cursor-pointer ${
                     sourceFilter === 'HR'
-                      ? 'bg-blue-600 text-white border-blue-600'
-                      : 'bg-blue-50/60 text-blue-700 border-blue-200 hover:bg-blue-100/70'
+                      ? 'bg-[#1D4ED8] text-white border-[#1D4ED8]'
+                      : 'bg-[#EFF6FF] text-[#1D4ED8] border-[#DBEAFE] hover:bg-blue-100/70'
                   }`}
                 >
                   Cây nhân sự ({hrCount})

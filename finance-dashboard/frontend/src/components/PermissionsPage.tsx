@@ -1,4 +1,28 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import {
+  ShieldCheck,
+  ClipboardList,
+  AlertTriangle,
+  RefreshCw,
+  CheckCircle2,
+  XCircle,
+  X,
+  Users,
+  Search,
+  Shield,
+  Globe,
+  Map,
+  Building2,
+  FolderOpen,
+  GitFork,
+  Lock,
+  Target,
+  Zap,
+  SlidersHorizontal,
+  Save,
+  Check,
+  ArrowLeft,
+} from 'lucide-react';
 import { dashboardApi } from '../services/api';
 import { UserAccount, TreeFlatNode, PermissionPreset } from '../types';
 
@@ -315,38 +339,38 @@ export const PermissionsPage: React.FC = () => {
     switch (scopeType) {
       case 'ALL':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-            <span>🌐</span> Toàn Hệ Thống
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#EFF6FF] text-[#1D4ED8] border border-[#DBEAFE]">
+            <Globe size={11} /> Toàn Hệ Thống
           </span>
         );
       case 'REGION':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-            <span>🗺️</span> Vùng: {nodeName || 'Miền'}
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#E0F2FE] text-[#0369A1] border border-[#BAE6FD]">
+            <Map size={11} /> Vùng: {nodeName || 'Miền'}
           </span>
         );
       case 'BRANCH':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-            <span>🏢</span> Chi nhánh: {nodeName || 'CN'}
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#EFF6FF] text-[#1E40AF] border border-[#BFDBFE]">
+            <Building2 size={11} /> Chi nhánh: {nodeName || 'CN'}
           </span>
         );
       case 'DEPARTMENT':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-            <span>📁</span> Phòng ban: {nodeName || 'Phòng'}
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-[#0F294A] border border-slate-200">
+            <FolderOpen size={11} /> Phòng ban: {nodeName || 'Phòng'}
           </span>
         );
       case 'EMPLOYEE_SUBTREE':
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
-            <span>🌳</span> Cây con: {nodeName || 'Cá nhân'}
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-50 text-slate-700 border border-slate-200">
+            <GitFork size={11} /> Cây con: {nodeName || 'Cá nhân'}
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
-            <span>🔒</span> Chưa phân quyền
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 text-slate-500 border border-slate-200">
+            <Lock size={11} /> Chưa phân quyền
           </span>
         );
     }
@@ -355,47 +379,45 @@ export const PermissionsPage: React.FC = () => {
   return (
     <div className="space-y-6">
       {/* 1. Header & Actions Bar */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="w-10 h-10 rounded-xl bg-purple-600/10 text-purple-600 flex items-center justify-center font-bold text-xl shadow-xs">
-              🔐
-            </div>
-            <div>
-              <h1 className="text-lg font-extrabold text-slate-900 tracking-tight">
-                Chuyên Trang Quản Lý Phân Quyền & Phạm Vi Dữ Liệu
-              </h1>
-              <p className="text-xs text-slate-500 font-medium">
-                Cấp quyền theo Cụm/Miền, Chi nhánh, Phòng ban, Cây con cá nhân hoặc sử dụng Bộ Quyền Mẫu (Preset).
-              </p>
-            </div>
+      <div className="bg-white rounded-xl border border-slate-200/90 p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#EFF6FF] text-[#1D4ED8] flex items-center justify-center shrink-0">
+            <ShieldCheck size={20} />
+          </div>
+          <div>
+            <h1 className="text-base sm:text-lg font-bold text-[#0F294A] tracking-tight">
+              Chuyên Trang Quản Lý Phân Quyền &amp; Phạm Vi Dữ Liệu
+            </h1>
+            <p className="text-xs text-slate-500 font-medium">
+              Cấp quyền theo Cụm/Miền, Chi nhánh, Phòng ban, Cây con cá nhân hoặc sử dụng Bộ Quyền Mẫu (Preset).
+            </p>
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             onClick={() => setIsPresetModalOpen(true)}
-            className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+            className="px-3.5 py-2 bg-[#EFF6FF] hover:bg-blue-100 text-[#1D4ED8] border border-[#DBEAFE] rounded-xl text-xs font-semibold transition inline-flex items-center gap-1.5 cursor-pointer"
           >
-            <span>📋</span>
+            <ClipboardList size={14} />
             <span>Bộ Quyền Mẫu ({presets.length})</span>
           </button>
 
           <button
             onClick={() => setIsRevokeModalOpen(true)}
-            className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+            className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-xl text-xs font-semibold transition inline-flex items-center gap-1.5 cursor-pointer"
           >
-            <span>⚠️</span>
+            <AlertTriangle size={14} />
             <span>Thu Hồi Toàn Bộ Quyền</span>
           </button>
 
           <button
             onClick={loadAllData}
             disabled={loading}
-            className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer disabled:opacity-50"
+            className="px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
             title="Làm mới dữ liệu"
           >
-            <span>🔄</span>
+            <RefreshCw size={14} className={loading ? 'animate-spin text-[#1D4ED8]' : ''} />
             <span>{loading ? 'Đang tải...' : 'Làm mới'}</span>
           </button>
         </div>
@@ -411,14 +433,19 @@ export const PermissionsPage: React.FC = () => {
           }`}
         >
           <div className="flex items-center gap-2">
-            <span>{statusMessage.type === 'success' ? '✅' : '❌'}</span>
+            {statusMessage.type === 'success' ? (
+              <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+            ) : (
+              <XCircle size={16} className="text-rose-600 shrink-0" />
+            )}
             <span>{statusMessage.text}</span>
           </div>
           <button
             onClick={() => setStatusMessage(null)}
-            className="text-slate-400 hover:text-slate-600 font-bold ml-4 cursor-pointer"
+            aria-label="Đóng thông báo"
+            className="text-slate-400 hover:text-slate-600 ml-4 cursor-pointer"
           >
-            ✕
+            <X size={15} />
           </button>
         </div>
       )}
@@ -426,33 +453,35 @@ export const PermissionsPage: React.FC = () => {
       {/* 2. Main 2-Column Work Area */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* LEFT COLUMN: User Selection & Filters (5 cols) */}
-        <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden flex flex-col h-[750px]">
+        <div className="lg:col-span-5 bg-white rounded-xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col h-[750px]">
           {/* Top filter controls */}
-          <div className="p-4 border-b border-slate-100 bg-slate-50/60 space-y-3">
+          <div className="p-4 border-b border-slate-100 bg-[#F8FAFC] space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                <span>👥</span> Danh Sách Tài Khoản ({filteredUsers.length})
+              <span className="text-xs font-bold uppercase tracking-wider text-[#0F294A] inline-flex items-center gap-1.5">
+                <Users size={14} className="text-[#1D4ED8]" /> Danh Sách Tài Khoản ({filteredUsers.length})
               </span>
-              <span className="text-[11px] font-bold text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-100">
+              <span className="text-[11px] font-semibold text-[#1D4ED8] bg-[#EFF6FF] px-2.5 py-0.5 rounded-full border border-[#DBEAFE] tabular-nums">
                 Đã chọn: {selectedUserIds.length}
               </span>
             </div>
 
             {/* Search Input */}
             <div className="relative">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="🔍 Tìm kiếm tên tài khoản, họ tên, chi nhánh..."
+                placeholder="Tìm kiếm tên tài khoản, họ tên, chi nhánh..."
                 value={userSearch}
                 onChange={(e) => setUserSearch(e.target.value)}
-                className="w-full pl-3 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                className="w-full pl-9 pr-8 py-2 bg-white border border-slate-200 rounded-xl text-xs text-[#0F294A] placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/20 focus:border-[#1D4ED8]"
               />
               {userSearch && (
                 <button
                   onClick={() => setUserSearch('')}
-                  className="absolute right-2.5 top-2 text-slate-400 hover:text-slate-600 text-xs"
+                  aria-label="Xóa tìm kiếm"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
                 >
-                  ✕
+                  <X size={14} />
                 </button>
               )}
             </div>
@@ -464,7 +493,7 @@ export const PermissionsPage: React.FC = () => {
                 <select
                   value={roleFilter}
                   onChange={(e) => setRoleFilter(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700 focus:outline-none"
+                  className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-[#0F294A] focus:outline-none focus:border-[#1D4ED8]"
                 >
                   <option value="ALL">Tất cả vai trò</option>
                   <option value="admin">Quản trị (admin)</option>
@@ -477,10 +506,9 @@ export const PermissionsPage: React.FC = () => {
                 <select
                   value={scopeFilter}
                   onChange={(e) => setScopeFilter(e.target.value)}
-                  className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-slate-700 focus:outline-none"
+                  className="w-full bg-white border border-slate-200 rounded-lg px-2 py-1.5 text-xs text-[#0F294A] focus:outline-none focus:border-[#1D4ED8]"
                 >
                   <option value="ALL">Tất cả Scope</option>
-                  <option value="ALL">Toàn hệ thống (ALL)</option>
                   <option value="REGION">Cụm / Miền (REGION)</option>
                   <option value="BRANCH">Chi nhánh (BRANCH)</option>
                   <option value="DEPARTMENT">Phòng ban (DEPARTMENT)</option>
@@ -490,24 +518,25 @@ export const PermissionsPage: React.FC = () => {
             </div>
 
             {/* Admin Auto-hide toggle */}
-            <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-xs">
-              <label className="flex items-center gap-2 cursor-pointer select-none font-semibold text-slate-700 bg-purple-50/60 px-2.5 py-1 rounded-lg border border-purple-100">
+            <div className="flex items-center justify-between pt-2 border-t border-slate-200/60 text-xs">
+              <label className="flex items-center gap-2 cursor-pointer select-none font-semibold text-[#0F294A] bg-[#EFF6FF] px-2.5 py-1 rounded-lg border border-[#DBEAFE]">
                 <input
                   type="checkbox"
                   checked={hideAdminUsers}
                   onChange={(e) => setHideAdminUsers(e.target.checked)}
-                  className="rounded text-purple-600 focus:ring-purple-500 w-3.5 h-3.5 cursor-pointer"
+                  className="rounded accent-[#1D4ED8] w-3.5 h-3.5 cursor-pointer"
                 />
-                <span>🛡️ Ẩn tài khoản Quản trị viên (Khuyên dùng)</span>
+                <Shield size={13} className="text-[#1D4ED8]" />
+                <span>Ẩn tài khoản Quản trị viên (Khuyên dùng)</span>
               </label>
 
-              <span className="text-[11px] text-slate-400">
+              <span className="text-[11px] text-slate-400 tabular-nums">
                 {users.filter(isAdminUser).length} Admin
               </span>
             </div>
 
             {/* Quick multi-select toolbar */}
-            <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-xs">
+            <div className="flex items-center justify-between pt-1.5 border-t border-slate-200/60 text-xs">
               <label className="flex items-center gap-2 cursor-pointer select-none font-semibold text-slate-600">
                 <input
                   type="checkbox"
@@ -518,7 +547,7 @@ export const PermissionsPage: React.FC = () => {
                       .every((u) => selectedUserIds.includes(u.id))
                   }
                   onChange={handleToggleSelectAll}
-                  className="rounded text-purple-600 focus:ring-purple-500 w-4 h-4 cursor-pointer"
+                  className="rounded accent-[#1D4ED8] w-4 h-4 cursor-pointer"
                 />
                 <span>Chọn tất cả ({filteredUsers.filter((u) => !isAdminUser(u)).length})</span>
               </label>
@@ -552,7 +581,7 @@ export const PermissionsPage: React.FC = () => {
                       isAdmin
                         ? 'bg-slate-50/70 border-slate-200/70 cursor-not-allowed opacity-80'
                         : isSelected
-                        ? 'bg-purple-50/80 border-purple-200 shadow-2xs cursor-pointer'
+                        ? 'bg-[#EFF6FF] border-[#BFDBFE] cursor-pointer'
                         : 'bg-white border-transparent hover:bg-slate-50 cursor-pointer'
                     }`}
                   >
@@ -560,37 +589,35 @@ export const PermissionsPage: React.FC = () => {
                       type="checkbox"
                       disabled={isAdmin}
                       checked={!isAdmin && isSelected}
-                      onChange={() => {}} // handled by parent div
-                      className={`rounded w-4 h-4 ${
-                        isAdmin
-                          ? 'opacity-30 cursor-not-allowed'
-                          : 'text-purple-600 focus:ring-purple-500 cursor-pointer'
+                      onChange={() => {}}
+                      className={`rounded w-4 h-4 accent-[#1D4ED8] ${
+                        isAdmin ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer'
                       }`}
                     />
 
-                    <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-xs text-slate-600 shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-[#EFF6FF] border border-[#DBEAFE] flex items-center justify-center font-bold text-xs text-[#1D4ED8] shrink-0">
                       {user.username.substring(0, 2).toUpperCase()}
                     </div>
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-bold text-xs text-slate-900 truncate">
+                        <span className="font-bold text-xs text-[#0F294A] truncate">
                           {user.fullName || user.username}
                         </span>
                         <span className="text-[11px] font-mono text-slate-400">
                           @{user.username}
                         </span>
                         {isAdmin && (
-                          <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-200 flex items-center gap-0.5">
-                            <span>🛡️</span> Admin (Toàn quyền)
+                          <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 inline-flex items-center gap-0.5">
+                            <Shield size={10} /> Admin
                           </span>
                         )}
                       </div>
 
                       <div className="mt-1 flex items-center gap-1.5 flex-wrap">
                         {isAdmin ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
-                            <span>🌐</span> Toàn Hệ Thống (Không hạn chế)
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#EFF6FF] text-[#1D4ED8] border border-[#DBEAFE]">
+                            <Globe size={11} /> Toàn Hệ Thống (Không hạn chế)
                           </span>
                         ) : (
                           getScopeBadge(user.scopeType, user.scopeNodeName || user.branchAccess)
@@ -610,30 +637,32 @@ export const PermissionsPage: React.FC = () => {
         </div>
 
         {/* RIGHT COLUMN: Permission Assignment Workspace (7 cols) */}
-        <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 flex flex-col h-[750px] overflow-hidden">
+        <div className="lg:col-span-7 bg-white rounded-xl border border-slate-200/90 shadow-xs p-5 flex flex-col h-[750px] overflow-hidden">
           {/* Header & Target Summary */}
           <div className="pb-4 border-b border-slate-100">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                <span>🎯</span> Thiết Lập Phạm Vi Quyền Truy Cập
+              <span className="text-xs font-bold uppercase tracking-wider text-[#0F294A] inline-flex items-center gap-1.5">
+                <Target size={15} className="text-[#1D4ED8]" /> Thiết Lập Phạm Vi Quyền Truy Cập
               </span>
 
               {selectedUserIds.length > 0 && (
-                <span className="text-xs font-extrabold px-3 py-1 bg-purple-600 text-white rounded-full shadow-2xs">
-                  {selectedUserIds.length === 1 ? '1 Người Dùng Đã Chọn' : `${selectedUserIds.length} Người Dùng Được Chọn`}
+                <span className="text-xs font-semibold px-3 py-1 bg-[#1D4ED8] text-white rounded-full tabular-nums">
+                  {selectedUserIds.length === 1
+                    ? '1 Người Dùng Đã Chọn'
+                    : `${selectedUserIds.length} Người Dùng Được Chọn`}
                 </span>
               )}
             </div>
 
             {selectedUserIds.length === 0 ? (
-              <div className="bg-amber-50 border border-amber-200/80 text-amber-800 rounded-xl p-3 text-xs flex items-center gap-2">
-                <span>👈</span>
+              <div className="bg-[#EFF6FF] border border-[#DBEAFE] text-[#0F294A] rounded-xl p-3 text-xs flex items-center gap-2">
+                <ArrowLeft size={15} className="text-[#1D4ED8] shrink-0" />
                 <span>Vui lòng tích chọn một hoặc nhiều tài khoản ở cột bên trái để bắt đầu gán quyền.</span>
               </div>
             ) : (
-              <div className="bg-purple-50/60 border border-purple-200/70 rounded-xl p-3 text-xs text-purple-900">
+              <div className="bg-[#EFF6FF] border border-[#BFDBFE] rounded-xl p-3 text-xs text-[#0F294A]">
                 <span className="font-bold">Đang gán quyền cho: </span>
-                <span className="font-semibold">
+                <span className="font-semibold text-[#1D4ED8]">
                   {selectedUserIds.length === 1
                     ? users.find((u) => u.id === selectedUserIds[0])?.fullName ||
                       users.find((u) => u.id === selectedUserIds[0])?.username
@@ -646,25 +675,25 @@ export const PermissionsPage: React.FC = () => {
             <div className="flex items-center gap-2 mt-4">
               <button
                 onClick={() => setAssignMode('preset')}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   assignMode === 'preset'
-                    ? 'bg-purple-600 text-white shadow-xs'
+                    ? 'bg-[#1D4ED8] text-white shadow-xs'
                     : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                 }`}
               >
-                <span>⚡</span>
+                <Zap size={14} />
                 <span>Theo Bộ Quyền Mẫu (Preset)</span>
               </button>
 
               <button
                 onClick={() => setAssignMode('custom')}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-semibold transition flex items-center justify-center gap-1.5 cursor-pointer ${
                   assignMode === 'custom'
-                    ? 'bg-purple-600 text-white shadow-xs'
+                    ? 'bg-[#1D4ED8] text-white shadow-xs'
                     : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
                 }`}
               >
-                <span>🛠️</span>
+                <SlidersHorizontal size={14} />
                 <span>Tùy Chỉnh Scope Thủ Công</span>
               </button>
             </div>
@@ -679,7 +708,7 @@ export const PermissionsPage: React.FC = () => {
                   <span>Chọn 1 Bộ Quyền Mẫu để áp dụng:</span>
                   <button
                     onClick={() => setIsPresetModalOpen(true)}
-                    className="text-purple-600 hover:underline text-[11px] cursor-pointer"
+                    className="text-[#1D4ED8] hover:underline text-[11px] font-semibold cursor-pointer"
                   >
                     + Tạo mẫu mới
                   </button>
@@ -694,17 +723,17 @@ export const PermissionsPage: React.FC = () => {
                         onClick={() => setSelectedPresetId(preset.id)}
                         className={`p-3.5 rounded-xl border transition cursor-pointer relative ${
                           isSelected
-                            ? 'bg-purple-50/80 border-purple-400 ring-2 ring-purple-500/20 shadow-xs'
-                            : 'bg-white border-slate-200 hover:border-purple-200 hover:bg-slate-50/50'
+                            ? 'bg-[#EFF6FF] border-[#1D4ED8] ring-2 ring-[#1D4ED8]/15'
+                            : 'bg-white border-slate-200 hover:border-[#BFDBFE] hover:bg-slate-50/50'
                         }`}
                       >
                         <div className="flex items-start justify-between gap-2">
-                          <div className="font-bold text-xs text-slate-900 leading-snug">
+                          <div className="font-bold text-xs text-[#0F294A] leading-snug">
                             {preset.name}
                           </div>
                           {isSelected && (
-                            <span className="w-5 h-5 rounded-full bg-purple-600 text-white text-[11px] flex items-center justify-center font-bold">
-                              ✓
+                            <span className="w-5 h-5 rounded-full bg-[#1D4ED8] text-white flex items-center justify-center shrink-0">
+                              <Check size={12} />
                             </span>
                           )}
                         </div>
@@ -718,9 +747,7 @@ export const PermissionsPage: React.FC = () => {
                         <div className="mt-2.5 pt-2 border-t border-slate-100 flex items-center gap-1.5 flex-wrap">
                           {getScopeBadge(preset.scopeType, preset.scopeNodeName)}
                           {preset.scopeNodeRole && (
-                            <span className="text-[10px] text-slate-400">
-                              • {preset.scopeNodeRole}
-                            </span>
+                            <span className="text-[10px] text-slate-400">• {preset.scopeNodeRole}</span>
                           )}
                         </div>
                       </div>
@@ -743,59 +770,61 @@ export const PermissionsPage: React.FC = () => {
             {/* MODE 2: CUSTOM SCOPE CONFIGURATION */}
             {assignMode === 'custom' && (
               <div className="space-y-4">
-                {/* Step 1: Scope Type */}
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                  <label className="block text-xs font-bold text-[#0F294A] uppercase tracking-wider mb-1.5">
                     1. Chọn Cấp Độ Quyền Hạn (Scope Type):
                   </label>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {[
-                      { type: 'ALL', label: 'Toàn Hệ Thống', icon: '🌐', desc: 'Xem tất cả số liệu' },
-                      { type: 'REGION', label: 'Cụm / Miền', icon: '🗺️', desc: 'Xem vùng miền' },
-                      { type: 'BRANCH', label: 'Chi Nhánh', icon: '🏢', desc: 'Xem 1 chi nhánh' },
-                      { type: 'DEPARTMENT', label: 'Phòng Ban', icon: '📁', desc: 'Xem phòng ban' },
-                      { type: 'EMPLOYEE_SUBTREE', label: 'Cây Con Cá Nhân', icon: '🌳', desc: 'Nhân viên & cấp dưới' },
-                    ].map((item) => (
-                      <button
-                        key={item.type}
-                        type="button"
-                        onClick={() => {
-                          setCustomScopeType(item.type);
-                          setSelectedNodeId('');
-                        }}
-                        className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
-                          customScopeType === item.type
-                            ? 'bg-purple-50 border-purple-400 ring-2 ring-purple-500/20'
-                            : 'bg-white border-slate-200 hover:bg-slate-50'
-                        }`}
-                      >
-                        <div className="flex items-center gap-1.5 font-bold text-xs text-slate-900">
-                          <span>{item.icon}</span>
-                          <span>{item.label}</span>
-                        </div>
-                        <div className="text-[10px] text-slate-500 mt-0.5">{item.desc}</div>
-                      </button>
-                    ))}
+                      { type: 'ALL', label: 'Toàn Hệ Thống', Icon: Globe, desc: 'Xem tất cả số liệu' },
+                      { type: 'REGION', label: 'Cụm / Miền', Icon: Map, desc: 'Xem vùng miền' },
+                      { type: 'BRANCH', label: 'Chi Nhánh', Icon: Building2, desc: 'Xem 1 chi nhánh' },
+                      { type: 'DEPARTMENT', label: 'Phòng Ban', Icon: FolderOpen, desc: 'Xem phòng ban' },
+                      { type: 'EMPLOYEE_SUBTREE', label: 'Cây Con Cá Nhân', Icon: GitFork, desc: 'Nhân viên & cấp dưới' },
+                    ].map((item) => {
+                      const ScopeIcon = item.Icon;
+                      return (
+                        <button
+                          key={item.type}
+                          type="button"
+                          onClick={() => {
+                            setCustomScopeType(item.type);
+                            setSelectedNodeId('');
+                          }}
+                          className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                            customScopeType === item.type
+                              ? 'bg-[#EFF6FF] border-[#1D4ED8] ring-2 ring-[#1D4ED8]/15'
+                              : 'bg-white border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5 font-bold text-xs text-[#0F294A]">
+                            <ScopeIcon size={14} className="text-[#1D4ED8]" />
+                            <span>{item.label}</span>
+                          </div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">{item.desc}</div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
-                {/* Step 2: Target Node Picker (if not ALL) */}
                 {customScopeType !== 'ALL' && (
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                    <label className="block text-xs font-bold text-[#0F294A] uppercase tracking-wider mb-1.5">
                       2. Chọn Node Mục Tiêu Trong Cây Phân Cấp:
                     </label>
 
-                    {/* Node Search Bar */}
-                    <input
-                      type="text"
-                      placeholder={`🔍 Lọc theo tên node, chi nhánh, chức vụ (${customScopeType})...`}
-                      value={nodeSearch}
-                      onChange={(e) => setNodeSearch(e.target.value)}
-                      className="w-full px-3 py-2 mb-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500/20"
-                    />
+                    <div className="relative mb-2">
+                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder={`Lọc theo tên node, chi nhánh, chức vụ (${customScopeType})...`}
+                        value={nodeSearch}
+                        onChange={(e) => setNodeSearch(e.target.value)}
+                        className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-[#0F294A] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/20 focus:border-[#1D4ED8]"
+                      />
+                    </div>
 
-                    {/* Node Select List */}
                     <div className="max-h-56 overflow-y-auto border border-slate-200 rounded-xl divide-y divide-slate-100 bg-white">
                       {filteredNodes.length === 0 ? (
                         <div className="p-4 text-center text-xs text-slate-400">
@@ -810,7 +839,7 @@ export const PermissionsPage: React.FC = () => {
                               onClick={() => setSelectedNodeId(node.id)}
                               className={`p-2.5 flex items-center justify-between text-xs cursor-pointer transition ${
                                 isNodeSelected
-                                  ? 'bg-purple-50/80 font-bold text-purple-900'
+                                  ? 'bg-[#EFF6FF] font-bold text-[#1D4ED8]'
                                   : 'hover:bg-slate-50 text-slate-700'
                               }`}
                             >
@@ -829,7 +858,7 @@ export const PermissionsPage: React.FC = () => {
                                 </div>
                               </div>
 
-                              <div className="text-right">
+                              <div className="text-right tabular-nums">
                                 <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">
                                   {node.subordinatesCount} cấp dưới
                                 </span>
@@ -852,7 +881,7 @@ export const PermissionsPage: React.FC = () => {
                 <span>Chưa chọn tài khoản</span>
               ) : (
                 <span>
-                  Sẽ áp dụng cho <strong className="text-purple-600">{selectedUserIds.length}</strong> tài khoản
+                  Sẽ áp dụng cho <strong className="text-[#1D4ED8] tabular-nums">{selectedUserIds.length}</strong> tài khoản
                 </span>
               )}
             </div>
@@ -865,7 +894,7 @@ export const PermissionsPage: React.FC = () => {
                 (assignMode === 'preset' && !selectedPresetId) ||
                 (assignMode === 'custom' && customScopeType !== 'ALL' && !selectedNodeId)
               }
-              className="px-5 py-2.5 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white rounded-xl text-xs font-bold shadow-md shadow-purple-500/20 transition-all flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-5 py-2.5 bg-[#1D4ED8] hover:bg-[#1E40AF] text-white rounded-xl text-xs font-semibold shadow-xs transition flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {saving ? (
                 <>
@@ -874,7 +903,7 @@ export const PermissionsPage: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <span>💾</span>
+                  <Save size={14} />
                   <span>
                     {selectedUserIds.length > 1
                       ? `Áp Dụng Cho ${selectedUserIds.length} Người Dùng`
@@ -887,24 +916,26 @@ export const PermissionsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 3. Modal Quản Lý Bộ Quyền Mẫu (Preset Management Modal) */}
+      {/* 3. Modal Quản Lý Bộ Quyền Mẫu */}
       {isPresetModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-100 space-y-4 max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px]">
+          <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] flex flex-col">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <span className="text-lg">📋</span>
-                <h3 className="text-base font-extrabold text-slate-900">Quản Lý Bộ Quyền Mẫu (Presets)</h3>
+                <span className="w-8 h-8 rounded-xl bg-[#EFF6FF] text-[#1D4ED8] flex items-center justify-center">
+                  <ClipboardList size={16} />
+                </span>
+                <h3 className="text-base font-bold text-[#0F294A]">Quản Lý Bộ Quyền Mẫu (Presets)</h3>
               </div>
               <button
                 onClick={() => setIsPresetModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer"
+                aria-label="Đóng"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-[#0F294A] hover:bg-slate-100 cursor-pointer"
               >
-                ✕
+                <X size={16} />
               </button>
             </div>
 
-            {/* Presets List */}
             <div className="flex-1 overflow-y-auto space-y-2 pr-1 max-h-56">
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                 Các Bộ Quyền Hiện Có ({presets.length}):
@@ -913,7 +944,7 @@ export const PermissionsPage: React.FC = () => {
                 {presets.map((p) => (
                   <div key={p.id} className="p-3 flex items-center justify-between text-xs bg-white hover:bg-slate-50">
                     <div>
-                      <div className="font-bold text-slate-900">{p.name}</div>
+                      <div className="font-bold text-[#0F294A]">{p.name}</div>
                       <div className="text-[11px] text-slate-500">{p.description}</div>
                       <div className="mt-1 flex items-center gap-1.5">
                         {getScopeBadge(p.scopeType, p.scopeNodeName)}
@@ -922,7 +953,7 @@ export const PermissionsPage: React.FC = () => {
                     </div>
                     <button
                       onClick={() => handleDeletePreset(p.id)}
-                      className="text-rose-500 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer"
+                      className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer"
                     >
                       Xóa
                     </button>
@@ -931,9 +962,8 @@ export const PermissionsPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Create New Preset Form */}
             <form onSubmit={handleCreatePreset} className="pt-3 border-t border-slate-100 space-y-3">
-              <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+              <span className="text-xs font-bold text-[#0F294A] uppercase tracking-wider block">
                 + Thêm Bộ Quyền Mẫu Mới:
               </span>
 
@@ -952,7 +982,7 @@ export const PermissionsPage: React.FC = () => {
                     placeholder="Ví dụ: Giám Đốc Chi Nhánh HN"
                     value={newPresetName}
                     onChange={(e) => setNewPresetName(e.target.value)}
-                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs"
+                    className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs text-[#0F294A]"
                   />
                 </div>
 
@@ -964,7 +994,7 @@ export const PermissionsPage: React.FC = () => {
                       setNewPresetScopeType(e.target.value);
                       setNewPresetNodeId('');
                     }}
-                    className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white"
+                    className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white text-[#0F294A]"
                   >
                     <option value="ALL">Toàn Hệ Thống (ALL)</option>
                     <option value="REGION">Cụm / Miền (REGION)</option>
@@ -982,7 +1012,7 @@ export const PermissionsPage: React.FC = () => {
                   placeholder="Ghi chú chi tiết cho bộ quyền..."
                   value={newPresetDesc}
                   onChange={(e) => setNewPresetDesc(e.target.value)}
-                  className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs"
+                  className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs text-[#0F294A]"
                 />
               </div>
 
@@ -1001,7 +1031,7 @@ export const PermissionsPage: React.FC = () => {
                   <select
                     value={newPresetNodeId}
                     onChange={(e) => setNewPresetNodeId(e.target.value)}
-                    className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white"
+                    className="w-full px-2 py-1.5 border border-slate-200 rounded-lg text-xs bg-white text-[#0F294A]"
                   >
                     <option value="">-- Chọn Node mục tiêu --</option>
                     {filteredPresetNodes.map((n) => (
@@ -1023,7 +1053,7 @@ export const PermissionsPage: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                  className="px-4 py-1.5 bg-[#1D4ED8] hover:bg-[#1E40AF] text-white rounded-lg text-xs font-semibold transition cursor-pointer"
                 >
                   Tạo Bộ Quyền Mới
                 </button>
@@ -1033,16 +1063,16 @@ export const PermissionsPage: React.FC = () => {
         </div>
       )}
 
-      {/* 4. Modal Thu Hồi Toàn Bộ Quyền (Revoke All Modal) */}
+      {/* 4. Modal Thu Hồi Toàn Bộ Quyền */}
       {isRevokeModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px]">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-rose-200 space-y-4">
             <div className="flex items-center gap-3 text-rose-600 pb-3 border-b border-rose-100">
-              <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center text-xl shrink-0">
-                🚨
+              <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
+                <AlertTriangle size={20} className="text-rose-600" />
               </div>
               <div>
-                <h3 className="text-base font-extrabold text-slate-900">Xác Nhận Thu Hồi Toàn Bộ Quyền</h3>
+                <h3 className="text-base font-bold text-[#0F294A]">Xác Nhận Thu Hồi Toàn Bộ Quyền</h3>
                 <p className="text-xs text-rose-600 font-semibold">Hành động nhạy cảm - Cần xác nhận an toàn</p>
               </div>
             </div>
@@ -1051,15 +1081,15 @@ export const PermissionsPage: React.FC = () => {
               Thao tác này sẽ <strong className="text-rose-600">xóa toàn bộ phạm vi truy cập dữ liệu (Scope)</strong> của tất cả người dùng thông thường trong hệ thống.
             </p>
 
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-center gap-2">
-              <span className="text-base">🛡️</span>
+            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800 flex items-start gap-2">
+              <Shield size={16} className="text-emerald-600 shrink-0 mt-0.5" />
               <span>
                 <strong>Cơ chế bảo vệ an toàn:</strong> Tài khoản Quản trị viên (admin) và tài khoản đang đăng nhập của bạn được bảo vệ tuyệt đối và sẽ <strong>KHÔNG</strong> bị thu hồi quyền.
               </span>
             </div>
 
             <p className="text-xs text-slate-600 leading-relaxed">
-              Để tiếp tục, vui lòng gõ chính xác từ khóa <strong className="text-slate-900 font-mono">THU HOI</strong> hoặc <strong className="text-slate-900 font-mono">XAC NHAN</strong> vào ô bên dưới:
+              Để tiếp tục, vui lòng gõ chính xác từ khóa <strong className="text-[#0F294A] font-mono">THU HOI</strong> hoặc <strong className="text-[#0F294A] font-mono">XAC NHAN</strong> vào ô bên dưới:
             </p>
 
             <div>
@@ -1068,7 +1098,7 @@ export const PermissionsPage: React.FC = () => {
                 placeholder="Nhập THU HOI hoặc XAC NHAN"
                 value={revokeConfirmInput}
                 onChange={(e) => setRevokeConfirmInput(e.target.value)}
-                className="w-full px-4 py-2 border-2 border-rose-200 focus:border-rose-500 rounded-xl text-center text-sm font-bold tracking-wider text-slate-900 uppercase focus:outline-none"
+                className="w-full px-4 py-2 border-2 border-rose-200 focus:border-rose-500 rounded-xl text-center text-sm font-bold tracking-wider text-[#0F294A] uppercase focus:outline-none"
               />
             </div>
 
@@ -1091,9 +1121,10 @@ export const PermissionsPage: React.FC = () => {
                   revokeLoading ||
                   (revokeConfirmInput.trim() !== 'THU HOI' && revokeConfirmInput.trim() !== 'XAC NHAN')
                 }
-                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold transition shadow-md shadow-rose-600/20 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer flex items-center gap-1.5"
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold transition shadow-xs disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer inline-flex items-center gap-1.5"
               >
-                {revokeLoading ? 'Đang thực hiện...' : '🚨 Xác Nhận Thu Hồi'}
+                <AlertTriangle size={14} />
+                <span>{revokeLoading ? 'Đang thực hiện...' : 'Xác Nhận Thu Hồi'}</span>
               </button>
             </div>
           </div>

@@ -1,4 +1,19 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import {
+  GitFork,
+  Building2,
+  Users,
+  Search,
+  ZoomIn,
+  ZoomOut,
+  Plus,
+  Minus,
+  RefreshCw,
+  ListTree,
+  Network,
+  X,
+  FolderOpen,
+} from 'lucide-react';
 import { apiV1 } from '../services/apiV1';
 import { OrgTreeNode, ReportView } from '../types/v1';
 import { TreeNode } from '../types';
@@ -11,7 +26,14 @@ interface Props extends ReportView {
   isAdmin?: boolean;
 }
 
-export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, refreshKey, viewEmployeeId, view, onViewNode }) => {
+export const OrgTreeSection: React.FC<Props> = ({
+  datasetId,
+  asOfDate,
+  refreshKey,
+  viewEmployeeId,
+  view,
+  onViewNode,
+}) => {
   const [treeData, setTreeData] = useState<TreeNode[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -29,22 +51,29 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
     try {
       const adapt = (node: OrgTreeNode): TreeNode => {
         const children = node.subordinates.map(adapt);
-        return { id: node.employeeId, label: node.fullName, position: node.position,
-          department: node.department, branch: node.branch, region: node.region,
+        return {
+          id: node.employeeId,
+          label: node.fullName,
+          position: node.position,
+          department: node.department,
+          branch: node.branch,
+          region: node.region,
           directSubordinatesCount: children.length,
           totalSubordinatesCount: children.reduce((sum, child) => sum + child.totalSubordinatesCount + 1, 0),
-          totalRevenue: 0, totalBalance: 0, children };
+          totalRevenue: 0,
+          totalBalance: 0,
+          children,
+        };
       };
       const data = (await apiV1.getOrgTree(asOfDate, { datasetId, viewEmployeeId, view })).map(adapt);
       setTreeData(data);
 
-      // Auto-expand top 2 levels initially if nothing expanded yet
-      setExpandedNodes(prev => {
+      setExpandedNodes((prev) => {
         if (prev.size > 0) return prev;
         const initialExpanded = new Set<string>();
-        data.forEach(root => {
+        data.forEach((root) => {
           initialExpanded.add(root.id);
-          root.children?.forEach(child => initialExpanded.add(child.id));
+          root.children?.forEach((child) => initialExpanded.add(child.id));
         });
         return initialExpanded;
       });
@@ -56,7 +85,7 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
   };
 
   const toggleNode = (nodeId: string) => {
-    setExpandedNodes(prev => {
+    setExpandedNodes((prev) => {
       const next = new Set(prev);
       if (next.has(nodeId)) {
         next.delete(nodeId);
@@ -70,7 +99,7 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
   const expandAll = () => {
     const allIds = new Set<string>();
     const collectIds = (nodes: TreeNode[]) => {
-      nodes.forEach(n => {
+      nodes.forEach((n) => {
         allIds.add(n.id);
         if (n.children && n.children.length > 0) {
           collectIds(n.children);
@@ -85,7 +114,6 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
     setExpandedNodes(new Set());
   };
 
-  // Statistics calculation
   const stats = useMemo(() => {
     let total = 0;
     let ptm = 0;
@@ -95,7 +123,7 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
     let ctv = 0;
 
     const traverse = (nodes: TreeNode[]) => {
-      nodes.forEach(n => {
+      nodes.forEach((n) => {
         total++;
         const pos = (n.position || '').toUpperCase();
         if (pos.includes('PTM') || pos.includes('TGĐ')) ptm++;
@@ -115,22 +143,52 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
     return { total, ptm, gdcn, tpkd, cvkd, ctv };
   }, [treeData]);
 
-  // Color styles per position
+  // Disciplined Blue & Slate Hierarchy Styles per Position
   const getBadgeStyle = (pos: string) => {
     const p = (pos || '').toUpperCase();
     if (p.includes('PTM') || p.includes('TGĐ')) {
-      return { bg: '#581c87', border: '#a855f7', text: '#e9d5ff', label: 'GĐ Miền (PTM)', accent: '#c084fc' };
+      return {
+        bg: '#1E3A8A',
+        border: '#1D4ED8',
+        text: '#FFFFFF',
+        cardBorder: '#93C5FD',
+        accent: '#1E3A8A',
+      };
     }
     if (p.includes('GĐCN') || p.includes('GDCN')) {
-      return { bg: '#1e3a8a', border: '#3b82f6', text: '#bfdbfe', label: 'GĐ Chi nhánh', accent: '#60a5fa' };
+      return {
+        bg: '#DBEAFE',
+        border: '#93C5FD',
+        text: '#1E40AF',
+        cardBorder: '#BFDBFE',
+        accent: '#1D4ED8',
+      };
     }
     if (p.includes('TPKD') || p.includes('TRƯỞNG PHÒNG')) {
-      return { bg: '#064e3b', border: '#10b981', text: '#a7f3d0', label: 'Trưởng phòng KD', accent: '#34d399' };
+      return {
+        bg: '#E0F2FE',
+        border: '#BAE6FD',
+        text: '#0369A1',
+        cardBorder: '#BAE6FD',
+        accent: '#0284C7',
+      };
     }
     if (p.includes('CTV')) {
-      return { bg: '#334155', border: '#64748b', text: '#cbd5e1', label: 'Cộng tác viên', accent: '#94a3b8' };
+      return {
+        bg: '#F8FAFC',
+        border: '#CBD5E1',
+        text: '#475569',
+        cardBorder: '#CBD5E1',
+        accent: '#64748B',
+      };
     }
-    return { bg: '#78350f', border: '#f59e0b', text: '#fde68a', label: 'Chuyên viên KD', accent: '#fbbf24' };
+    return {
+      bg: '#F1F5F9',
+      border: '#CBD5E1',
+      text: '#0F294A',
+      cardBorder: '#E2E8F0',
+      accent: '#334155',
+    };
   };
 
   const nodeMatchesSearch = (node: TreeNode, term: string): boolean => {
@@ -143,12 +201,10 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
       (node.branch && node.branch.toLowerCase().includes(lower));
 
     if (matchThis) return true;
-    return (node.children || []).some(child => nodeMatchesSearch(child, term));
+    return (node.children || []).some((child) => nodeMatchesSearch(child, term));
   };
 
-  /* -------------------------------------------------------------
-   * 1. PYRAMID / ORG CHART NODE COMPONENT
-   * ----------------------------------------------------------- */
+  /* 1. PYRAMID / ORG CHART NODE */
   const renderPyramidNode = (node: TreeNode): React.ReactNode => {
     if (searchTerm && !nodeMatchesSearch(node, searchTerm)) {
       return null;
@@ -162,7 +218,7 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
       (node.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
         node.id.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    const filteredChildren = (node.children || []).filter(c =>
+    const filteredChildren = (node.children || []).filter((c) =>
       searchTerm ? nodeMatchesSearch(c, searchTerm) : true
     );
 
@@ -174,21 +230,21 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
           flexDirection: 'column',
           alignItems: 'center',
           position: 'relative',
-          padding: '0 12px',
+          padding: '0 10px',
         }}
       >
-        {/* The Node Card */}
+        {/* Node Card */}
         <div
           onClick={() => setSelectedNode(node)}
+          className="hover:shadow-md transition-all"
           style={{
-            width: '230px',
-            background: isMatching ? 'rgba(234, 179, 8, 0.15)' : '#0f172a',
-            border: isMatching ? '2px solid #eab308' : `1.5px solid ${badge.border}`,
+            width: '232px',
+            background: isMatching ? '#FEF9C3' : '#FFFFFF',
+            border: isMatching ? '2px solid #D97706' : `1.5px solid ${badge.cardBorder}`,
             borderRadius: '12px',
             padding: '12px 14px',
-            boxShadow: '0 6px 18px rgba(0, 0, 0, 0.35)',
+            boxShadow: '0 2px 8px rgba(15, 41, 74, 0.06)',
             cursor: 'pointer',
-            transition: 'all 0.2s ease',
             position: 'relative',
             zIndex: 10,
           }}
@@ -201,10 +257,10 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
                 color: badge.text,
                 border: `1px solid ${badge.border}`,
                 fontSize: '10px',
-                fontWeight: 800,
+                fontWeight: 700,
                 padding: '2px 8px',
                 borderRadius: '6px',
-                letterSpacing: '0.4px',
+                letterSpacing: '0.3px',
                 textTransform: 'uppercase',
               }}
             >
@@ -214,8 +270,8 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
               style={{
                 fontFamily: 'monospace',
                 fontSize: '11px',
-                color: '#94a3b8',
-                background: 'rgba(255, 255, 255, 0.08)',
+                color: '#64748B',
+                background: '#F1F5F9',
                 padding: '1px 6px',
                 borderRadius: '4px',
               }}
@@ -227,8 +283,8 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
           {/* Name */}
           <div
             style={{
-              color: '#ffffff',
-              fontSize: '14px',
+              color: '#0F294A',
+              fontSize: '13.5px',
               fontWeight: 700,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
@@ -243,18 +299,24 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
           <div
             style={{
               fontSize: '11px',
-              color: '#94a3b8',
+              color: '#64748B',
               marginTop: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
             }}
             title={`${node.branch || ''} - ${node.department || ''}`}
           >
-            🏛️ {node.branch || node.department || 'Đơn vị kinh doanh'}
+            <Building2 size={12} style={{ flexShrink: 0, color: '#94A3B8' }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {node.branch || node.department || 'Đơn vị kinh doanh'}
+            </span>
           </div>
 
-          {/* Bottom footer: Subordinate count + expand/collapse button */}
+          {/* Bottom footer */}
           <div
             style={{
               display: 'flex',
@@ -262,10 +324,11 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
               justifyContent: 'space-between',
               marginTop: '10px',
               paddingTop: '8px',
-              borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+              borderTop: '1px solid #F1F5F9',
             }}
           >
             <span
+              className="tabular-nums"
               style={{
                 fontSize: '11px',
                 fontWeight: 600,
@@ -275,7 +338,8 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
                 gap: '4px',
               }}
             >
-              👥 {node.totalSubordinatesCount} cấp dưới
+              <Users size={12} />
+              <span>{node.totalSubordinatesCount} cấp dưới</span>
             </span>
 
             {hasChildren && (
@@ -289,38 +353,36 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
                   width: '24px',
                   height: '24px',
                   borderRadius: '6px',
-                  background: isExpanded ? '#0284c7' : 'rgba(255, 255, 255, 0.12)',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: '13px',
-                  fontWeight: 700,
+                  background: isExpanded ? '#1D4ED8' : '#EFF6FF',
+                  color: isExpanded ? '#FFFFFF' : '#1D4ED8',
+                  border: isExpanded ? 'none' : '1px solid #DBEAFE',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   cursor: 'pointer',
-                  transition: 'background 0.2s',
+                  transition: 'all 0.15s',
                 }}
                 title={isExpanded ? 'Thu gọn nhánh' : 'Mở rộng nhánh'}
               >
-                {isExpanded ? '−' : '+'}
+                {isExpanded ? <Minus size={13} /> : <Plus size={13} />}
               </button>
             )}
           </div>
         </div>
 
-        {/* Vertical trunk line from card to children connector */}
+        {/* Vertical trunk line */}
         {hasChildren && isExpanded && filteredChildren.length > 0 && (
           <div
             style={{
               width: '2px',
-              height: '28px',
-              background: 'rgba(56, 189, 248, 0.5)',
+              height: '26px',
+              background: '#93C5FD',
               margin: '0 auto',
             }}
           />
         )}
 
-        {/* Children Row with Branch Lines */}
+        {/* Children Row */}
         {hasChildren && isExpanded && filteredChildren.length > 0 && (
           <div
             style={{
@@ -330,21 +392,20 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
               paddingTop: '12px',
             }}
           >
-            {/* Horizontal connector line spanning across all children */}
             {filteredChildren.length > 1 && (
               <div
                 style={{
                   position: 'absolute',
                   top: '0px',
-                  left: '115px', // half card width
-                  right: '115px',
+                  left: '116px',
+                  right: '116px',
                   height: '2px',
-                  background: 'rgba(56, 189, 248, 0.5)',
+                  background: '#93C5FD',
                 }}
               />
             )}
 
-            {filteredChildren.map((child, index) => (
+            {filteredChildren.map((child) => (
               <div
                 key={child.id}
                 style={{
@@ -354,14 +415,13 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
                   position: 'relative',
                 }}
               >
-                {/* Drop line from horizontal connector down to child node */}
                 <div
                   style={{
                     position: 'absolute',
                     top: '-12px',
                     width: '2px',
                     height: '12px',
-                    background: 'rgba(56, 189, 248, 0.5)',
+                    background: '#93C5FD',
                   }}
                 />
                 {renderPyramidNode(child)}
@@ -373,9 +433,7 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
     );
   };
 
-  /* -------------------------------------------------------------
-   * 2. TREE LIST / FOLDER NODE COMPONENT
-   * ----------------------------------------------------------- */
+  /* 2. TREE LIST NODE */
   const renderListNode = (node: TreeNode, depth: number = 0) => {
     if (searchTerm && !nodeMatchesSearch(node, searchTerm)) {
       return null;
@@ -392,121 +450,84 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
     return (
       <div key={node.id} style={{ marginLeft: depth > 0 ? '24px' : '0px', marginTop: '8px' }}>
         <div
+          className="flex flex-wrap items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 transition-colors"
           style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            background: isMatching
-              ? 'rgba(234, 179, 8, 0.15)'
-              : 'rgba(23, 42, 69, 0.7)',
-            border: isMatching
-              ? '1.5px solid #eab308'
-              : '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: '10px',
-            padding: '10px 14px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-            transition: 'all 0.2s',
+            background: isMatching ? '#FEF9C3' : '#FFFFFF',
+            border: isMatching ? '1.5px solid #D97706' : '1px solid #E2E8F0',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1 }}>
+          <div className="flex items-center gap-2.5 flex-1 min-w-0">
             {hasChildren ? (
               <button
                 type="button"
                 onClick={() => toggleNode(node.id)}
+                className="w-6 h-6 rounded-md flex items-center justify-center cursor-pointer transition-colors shrink-0"
                 style={{
-                  width: '26px',
-                  height: '26px',
-                  borderRadius: '6px',
-                  background: isExpanded ? '#0284c7' : 'rgba(255, 255, 255, 0.1)',
-                  color: '#ffffff',
-                  border: 'none',
-                  fontSize: '13px',
-                  fontWeight: 700,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
+                  background: isExpanded ? '#1D4ED8' : '#EFF6FF',
+                  color: isExpanded ? '#FFFFFF' : '#1D4ED8',
+                  border: isExpanded ? 'none' : '1px solid #DBEAFE',
                 }}
               >
-                {isExpanded ? '−' : '+'}
+                {isExpanded ? <Minus size={13} /> : <Plus size={13} />}
               </button>
             ) : (
-              <div style={{ width: '26px', textAlign: 'center', color: '#64748b' }}>•</div>
+              <div className="w-6 text-center text-slate-300 shrink-0">•</div>
             )}
 
             <span
+              className="px-2 py-0.5 rounded-md text-[11px] font-bold shrink-0"
               style={{
                 background: badge.bg,
                 border: `1px solid ${badge.border}`,
                 color: badge.text,
-                fontSize: '11px',
-                fontWeight: 700,
-                padding: '2px 8px',
-                borderRadius: '6px',
               }}
             >
               {node.position || 'CVKD'}
             </span>
 
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span
-                  style={{ color: '#ffffff', fontSize: '14px', fontWeight: 600, cursor: 'pointer' }}
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  type="button"
                   onClick={() => setSelectedNode(node)}
+                  className="text-sm font-semibold text-[#0F294A] hover:text-[#1D4ED8] cursor-pointer text-left truncate"
                 >
                   {node.label}
-                </span>
-                <span
-                  style={{
-                    background: 'rgba(255, 255, 255, 0.08)',
-                    color: '#94a3b8',
-                    fontSize: '11px',
-                    padding: '1px 6px',
-                    borderRadius: '4px',
-                    fontFamily: 'monospace',
-                  }}
-                >
+                </button>
+                <span className="bg-slate-100 text-slate-500 text-[11px] px-1.5 py-0.5 rounded font-mono">
                   {node.id}
                 </span>
               </div>
               {(node.branch || node.department) && (
-                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                  {node.branch && <span>🏛️ {node.branch}</span>}
-                  {node.branch && node.department && <span> • </span>}
-                  {node.department && <span>📑 {node.department}</span>}
+                <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5 flex-wrap">
+                  {node.branch && (
+                    <span className="inline-flex items-center gap-1">
+                      <Building2 size={11} className="text-slate-400" />
+                      {node.branch}
+                    </span>
+                  )}
+                  {node.department && (
+                    <span className="inline-flex items-center gap-1">
+                      <FolderOpen size={11} className="text-slate-400" />
+                      {node.department}
+                    </span>
+                  )}
                 </div>
               )}
             </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div className="flex items-center gap-2 shrink-0">
             {hasChildren && (
-              <div
-                style={{
-                  background: 'rgba(14, 165, 233, 0.12)',
-                  border: '1px solid rgba(14, 165, 233, 0.3)',
-                  color: '#38bdf8',
-                  padding: '3px 10px',
-                  borderRadius: '20px',
-                  fontSize: '11px',
-                  fontWeight: 600,
-                }}
-              >
-                👥 {node.directSubordinatesCount} trực tiếp / {node.totalSubordinatesCount} toàn nhánh
-              </div>
+              <span className="inline-flex items-center gap-1 bg-[#EFF6FF] border border-[#DBEAFE] text-[#1D4ED8] px-2.5 py-1 rounded-full text-[11px] font-semibold tabular-nums">
+                <Users size={12} />
+                {node.directSubordinatesCount} trực tiếp / {node.totalSubordinatesCount} toàn nhánh
+              </span>
             )}
             <button
               type="button"
               onClick={() => setSelectedNode(node)}
-              style={{
-                background: 'rgba(255, 255, 255, 0.06)',
-                border: '1px solid rgba(255, 255, 255, 0.12)',
-                color: '#cbd5e1',
-                padding: '4px 10px',
-                borderRadius: '6px',
-                fontSize: '11px',
-                cursor: 'pointer',
-              }}
+              className="bg-slate-50 hover:bg-[#EFF6FF] border border-slate-200 hover:border-[#BFDBFE] text-slate-700 hover:text-[#1D4ED8] px-2.5 py-1 rounded-lg text-xs font-semibold cursor-pointer transition-colors"
             >
               Chi tiết
             </button>
@@ -514,8 +535,8 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
         </div>
 
         {hasChildren && isExpanded && (
-          <div style={{ borderLeft: '2px dashed rgba(255, 255, 255, 0.15)', marginLeft: '12px', paddingLeft: '6px' }}>
-            {node.children.map(child => renderListNode(child, depth + 1))}
+          <div style={{ borderLeft: '2px dashed #BFDBFE', marginLeft: '12px', paddingLeft: '6px' }}>
+            {node.children.map((child) => renderListNode(child, depth + 1))}
           </div>
         )}
       </div>
@@ -523,124 +544,79 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
   };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {/* Header bar */}
-      <div
-        style={{
-          background: '#112240',
-          border: '1px solid #233554',
-          borderRadius: '12px',
-          padding: '20px 24px',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-          <div>
-            <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#ffffff', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <span>🌳 Sơ Đồ Cây Phân Cấp Kim Tự Tháp & Cấp Quản Lý</span>
-            </h2>
-            <p style={{ fontSize: '13px', color: '#94a3b8', margin: '4px 0 0 0' }}>
-              Phân cấp đa tầng: Ban Giám đốc Miền → Giám đốc Chi nhánh → Trưởng phòng KD → Chuyên viên Sale → Cộng tác viên.
-            </p>
+    <div className="space-y-4">
+      {/* Header & Controls Card */}
+      <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-xs space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#EFF6FF] text-[#1D4ED8] flex items-center justify-center shrink-0">
+              <GitFork size={18} />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-[#0F294A]">
+                Sơ Đồ Cây Phân Cấp &amp; Cấp Quản Lý
+              </h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Phân cấp đa tầng: Ban Giám đốc Miền → Giám đốc Chi nhánh → Trưởng phòng KD → Chuyên viên Sale → Cộng tác viên.
+              </p>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            {/* View Mode Toggle Button */}
-            <div
-              style={{
-                display: 'flex',
-                background: '#0a192f',
-                border: '1px solid #233554',
-                borderRadius: '8px',
-                padding: '2px',
-              }}
-            >
+          <div className="flex flex-wrap items-center gap-2">
+            {/* View Mode Toggle */}
+            <div className="inline-flex bg-slate-100 border border-slate-200 rounded-xl p-1 text-xs">
               <button
                 type="button"
                 onClick={() => setViewMode('pyramid')}
-                style={{
-                  background: viewMode === 'pyramid' ? '#0284c7' : 'transparent',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '5px 12px',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  transition: 'all 0.2s',
-                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+                  viewMode === 'pyramid' ? 'bg-white text-[#1D4ED8] shadow-2xs' : 'text-slate-600 hover:text-[#0F294A]'
+                }`}
               >
-                <span>🏛️</span>
+                <Network size={14} />
                 <span>Kim tự tháp</span>
               </button>
               <button
                 type="button"
                 onClick={() => setViewMode('list')}
-                style={{
-                  background: viewMode === 'list' ? '#0284c7' : 'transparent',
-                  color: '#ffffff',
-                  border: 'none',
-                  padding: '5px 12px',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '5px',
-                  transition: 'all 0.2s',
-                }}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold transition cursor-pointer ${
+                  viewMode === 'list' ? 'bg-white text-[#1D4ED8] shadow-2xs' : 'text-slate-600 hover:text-[#0F294A]'
+                }`}
               >
-                <span>📋</span>
+                <ListTree size={14} />
                 <span>Danh sách</span>
               </button>
             </div>
 
-            {/* Zoom Controls for Pyramid mode */}
             {viewMode === 'pyramid' && (
-              <div
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  background: '#0a192f',
-                  border: '1px solid #233554',
-                  borderRadius: '8px',
-                  padding: '2px 6px',
-                  gap: '4px',
-                }}
-              >
+              <div className="inline-flex items-center bg-slate-50 border border-slate-200 rounded-xl px-1.5 py-1 gap-1 text-xs">
                 <button
                   type="button"
-                  onClick={() => setZoom(z => Math.max(0.5, z - 0.1))}
-                  style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '14px', cursor: 'pointer', padding: '2px 6px' }}
+                  onClick={() => setZoom((z) => Math.max(0.5, z - 0.1))}
+                  className="p-1 text-slate-500 hover:text-[#1D4ED8] cursor-pointer"
                   title="Thu nhỏ"
+                  aria-label="Thu nhỏ"
                 >
-                  🔍−
+                  <ZoomOut size={14} />
                 </button>
-                <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 600, minWidth: '35px', textAlign: 'center' }}>
+                <span className="text-[11px] font-bold text-[#1D4ED8] min-w-[36px] text-center tabular-nums">
                   {Math.round(zoom * 100)}%
                 </span>
                 <button
                   type="button"
-                  onClick={() => setZoom(z => Math.min(1.5, z + 0.1))}
-                  style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '14px', cursor: 'pointer', padding: '2px 6px' }}
+                  onClick={() => setZoom((z) => Math.min(1.5, z + 0.1))}
+                  className="p-1 text-slate-500 hover:text-[#1D4ED8] cursor-pointer"
                   title="Phóng to"
+                  aria-label="Phóng to"
                 >
-                  🔍+
+                  <ZoomIn size={14} />
                 </button>
                 <button
                   type="button"
                   onClick={() => setZoom(0.95)}
-                  style={{ background: 'transparent', border: 'none', color: '#64748b', fontSize: '10px', cursor: 'pointer', padding: '2px 4px' }}
-                  title="Đặt lại"
+                  className="px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 hover:text-[#1D4ED8] cursor-pointer"
+                  title="Đặt lại tỷ lệ"
                 >
-                  100%
+                  Reset
                 </button>
               </div>
             )}
@@ -648,139 +624,97 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
             <button
               type="button"
               onClick={expandAll}
-              style={{
-                background: '#0284c7',
-                border: 'none',
-                color: '#ffffff',
-                padding: '6px 14px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#1D4ED8] hover:bg-[#1E40AF] text-white text-xs font-semibold cursor-pointer transition"
             >
-              ➕ Mở rộng
+              <Plus size={13} />
+              <span>Mở rộng</span>
             </button>
             <button
               type="button"
               onClick={collapseAll}
-              style={{
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                color: '#ffffff',
-                padding: '6px 14px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-700 text-xs font-semibold cursor-pointer transition"
             >
-              ➖ Thu gọn
+              <Minus size={13} />
+              <span>Thu gọn</span>
             </button>
             <button
               type="button"
               onClick={loadTree}
-              style={{
-                background: 'rgba(255, 255, 255, 0.08)',
-                border: '1px solid rgba(255, 255, 255, 0.15)',
-                color: '#ffffff',
-                padding: '6px 14px',
-                borderRadius: '6px',
-                fontSize: '12px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#EFF6FF] hover:bg-blue-100 border border-[#DBEAFE] text-[#1D4ED8] text-xs font-semibold cursor-pointer transition"
             >
-              🔄 Tải lại
+              <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+              <span>Tải lại</span>
             </button>
           </div>
         </div>
 
-        {/* Statistics cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
-          <div style={{ background: '#0a192f', border: '1px solid #1e293b', borderRadius: '8px', padding: '10px 14px' }}>
-            <div style={{ fontSize: '11px', color: '#64748b', fontWeight: 600, textTransform: 'uppercase' }}>Tổng nhân sự</div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#38bdf8', marginTop: '2px' }}>{stats.total}</div>
-          </div>
-          <div style={{ background: '#0a192f', border: '1px solid #1e293b', borderRadius: '8px', padding: '10px 14px' }}>
-            <div style={{ fontSize: '11px', color: '#c084fc', fontWeight: 600, textTransform: 'uppercase' }}>GĐ Miền (PTM)</div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#c084fc', marginTop: '2px' }}>{stats.ptm}</div>
-          </div>
-          <div style={{ background: '#0a192f', border: '1px solid #1e293b', borderRadius: '8px', padding: '10px 14px' }}>
-            <div style={{ fontSize: '11px', color: '#60a5fa', fontWeight: 600, textTransform: 'uppercase' }}>GĐ Chi nhánh</div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#60a5fa', marginTop: '2px' }}>{stats.gdcn}</div>
-          </div>
-          <div style={{ background: '#0a192f', border: '1px solid #1e293b', borderRadius: '8px', padding: '10px 14px' }}>
-            <div style={{ fontSize: '11px', color: '#34d399', fontWeight: 600, textTransform: 'uppercase' }}>Trưởng phòng KD</div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#34d399', marginTop: '2px' }}>{stats.tpkd}</div>
-          </div>
-          <div style={{ background: '#0a192f', border: '1px solid #1e293b', borderRadius: '8px', padding: '10px 14px' }}>
-            <div style={{ fontSize: '11px', color: '#fbbf24', fontWeight: 600, textTransform: 'uppercase' }}>Chuyên viên Sale</div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#fbbf24', marginTop: '2px' }}>{stats.cvkd}</div>
-          </div>
-          <div style={{ background: '#0a192f', border: '1px solid #1e293b', borderRadius: '8px', padding: '10px 14px' }}>
-            <div style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 600, textTransform: 'uppercase' }}>Cộng tác viên</div>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#cbd5e1', marginTop: '2px' }}>{stats.ctv}</div>
-          </div>
+        {/* Statistics Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+          {[
+            { label: 'Tổng nhân sự', value: stats.total, featured: true },
+            { label: 'GĐ Miền (PTM)', value: stats.ptm, featured: false },
+            { label: 'GĐ Chi nhánh', value: stats.gdcn, featured: false },
+            { label: 'Trưởng phòng KD', value: stats.tpkd, featured: false },
+            { label: 'Chuyên viên Sale', value: stats.cvkd, featured: false },
+            { label: 'Cộng tác viên', value: stats.ctv, featured: false },
+          ].map((item) => (
+            <div
+              key={item.label}
+              className={`rounded-xl border px-3.5 py-2.5 ${
+                item.featured ? 'bg-[#EFF6FF] border-[#BFDBFE]' : 'bg-[#F8FAFC] border-slate-200'
+              }`}
+            >
+              <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                {item.label}
+              </div>
+              <div
+                className={`text-xl font-extrabold mt-0.5 tabular-nums ${
+                  item.featured ? 'text-[#1D4ED8]' : 'text-[#0F294A]'
+                }`}
+              >
+                {item.value.toLocaleString('vi-VN')}
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Search bar & Legend */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-          <div style={{ flex: 1, minWidth: '260px' }}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="relative flex-1 min-w-[260px]">
+            <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
-              placeholder="🔍 Tìm kiếm theo Tên, Mã nhân viên, Phòng ban, Chi nhánh..."
+              placeholder="Tìm kiếm theo Tên, Mã nhân viên, Phòng ban, Chi nhánh..."
               value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              style={{
-                width: '100%',
-                background: '#0a192f',
-                border: '1px solid #233554',
-                color: '#ffffff',
-                padding: '8px 14px',
-                borderRadius: '8px',
-                fontSize: '13px',
-                outline: 'none',
-              }}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-slate-50/70 border border-slate-200 text-[#0F294A] pl-10 pr-4 py-2 rounded-xl text-xs sm:text-sm placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/20 focus:border-[#1D4ED8]"
             />
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', fontSize: '11px' }}>
-            <span style={{ color: '#94a3b8' }}>Ký hiệu cấp bậc:</span>
-            <span style={{ background: '#581c87', color: '#e9d5ff', padding: '2px 8px', borderRadius: '4px' }}>PTM (Miền)</span>
-            <span style={{ background: '#1e3a8a', color: '#bfdbfe', padding: '2px 8px', borderRadius: '4px' }}>GĐCN (Chi nhánh)</span>
-            <span style={{ background: '#064e3b', color: '#a7f3d0', padding: '2px 8px', borderRadius: '4px' }}>TPKD (Phòng KD)</span>
-            <span style={{ background: '#78350f', color: '#fde68a', padding: '2px 8px', borderRadius: '4px' }}>CVKD (Sale)</span>
-            <span style={{ background: '#334155', color: '#cbd5e1', padding: '2px 8px', borderRadius: '4px' }}>CTV</span>
+          <div className="flex items-center gap-1.5 flex-wrap text-[11px] font-semibold">
+            <span className="text-slate-500 mr-1">Cấp bậc:</span>
+            <span className="px-2 py-0.5 rounded bg-[#1E3A8A] text-white">PTM (Miền)</span>
+            <span className="px-2 py-0.5 rounded bg-[#DBEAFE] text-[#1E40AF] border border-[#93C5FD]">GĐCN</span>
+            <span className="px-2 py-0.5 rounded bg-[#E0F2FE] text-[#0369A1] border border-[#BAE6FD]">TPKD</span>
+            <span className="px-2 py-0.5 rounded bg-[#F1F5F9] text-[#0F294A] border border-[#CBD5E1]">CVKD</span>
+            <span className="px-2 py-0.5 rounded bg-[#F8FAFC] text-slate-600 border border-slate-200">CTV</span>
           </div>
         </div>
       </div>
 
-      {/* Main tree view container */}
-      <div
-        style={{
-          background: '#112240',
-          border: '1px solid #233554',
-          borderRadius: '12px',
-          padding: '24px',
-          minHeight: '500px',
-          overflowX: 'auto',
-          overflowY: 'auto',
-          boxShadow: '0 4px 20px rgba(0,0,0,0.25)',
-        }}
-      >
+      {/* Main Tree Container */}
+      <div className="bg-[#F8FAFC] border border-slate-200/90 rounded-xl p-6 min-h-[500px] overflow-auto">
         {loading ? (
-          <div style={{ textAlign: 'center', padding: '80px 0', color: '#94a3b8' }}>
-            <div style={{ fontSize: '28px', marginBottom: '8px' }}>🔄</div>
-            <div>Đang tải sơ đồ cây tổ chức...</div>
+          <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-2">
+            <div className="w-8 h-8 border-3 border-[#1D4ED8] border-t-transparent rounded-full animate-spin" />
+            <span className="text-xs font-medium">Đang tải sơ đồ cây tổ chức...</span>
           </div>
         ) : treeData.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '80px 0', color: '#64748b' }}>
-            <div style={{ fontSize: '36px', marginBottom: '8px' }}>🌳</div>
-            <div>Chưa có dữ liệu nhân sự. Vui lòng nạp file Excel nhân sự.</div>
+          <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-2">
+            <GitFork size={32} className="text-slate-300" />
+            <span className="text-sm">Chưa có dữ liệu nhân sự. Vui lòng nạp file Excel nhân sự.</span>
           </div>
         ) : viewMode === 'pyramid' ? (
-          /* SƠ ĐỒ KIM TỰ THÁP (ORG CHART) */
           <div
             style={{
               display: 'inline-flex',
@@ -790,116 +724,80 @@ export const OrgTreeSection: React.FC<Props> = ({ isAdmin, datasetId, asOfDate, 
               transform: `scale(${zoom})`,
               transformOrigin: 'top center',
               transition: 'transform 0.15s ease-out',
-              padding: '20px 0',
+              padding: '16px 0',
             }}
           >
-            <div style={{ display: 'flex', gap: '60px', justifyContent: 'center' }}>
-              {treeData.map(rootNode => renderPyramidNode(rootNode))}
+            <div style={{ display: 'flex', gap: '48px', justifyContent: 'center' }}>
+              {treeData.map((rootNode) => renderPyramidNode(rootNode))}
             </div>
           </div>
         ) : (
-          /* DANH SÁCH THỤT LẦN (TREE LIST) */
-          <div>
-            {treeData.map(rootNode => renderListNode(rootNode, 0))}
-          </div>
+          <div>{treeData.map((rootNode) => renderListNode(rootNode, 0))}</div>
         )}
       </div>
 
-      {/* Node detail Modal */}
+      {/* Node Detail Modal */}
       {selectedNode && (
         <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0, 0, 0, 0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 9999,
-            padding: '20px',
-          }}
+          className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center p-4"
           onClick={() => setSelectedNode(null)}
         >
           <div
-            style={{
-              width: '100%',
-              maxWidth: '460px',
-              background: '#112240',
-              border: '1px solid #233554',
-              borderRadius: '12px',
-              padding: '24px',
-              boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
-            }}
-            onClick={e => e.stopPropagation()}
+            className="w-full max-w-md bg-white border border-slate-200 rounded-2xl p-6 shadow-2xl space-y-4"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ margin: 0, color: '#ffffff', fontSize: '16px', fontWeight: 700 }}>
-                Chi Tiết Nhân Sự & Cấp Quản Lý
-              </h3>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <h3 className="text-base font-bold text-[#0F294A]">Chi Tiết Nhân Sự &amp; Cấp Quản Lý</h3>
               <button
                 type="button"
                 onClick={() => setSelectedNode(null)}
-                style={{ background: 'transparent', border: 'none', color: '#94a3b8', fontSize: '18px', cursor: 'pointer' }}
+                aria-label="Đóng"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-[#0F294A] hover:bg-slate-100 cursor-pointer"
               >
-                ✕
+                <X size={16} />
               </button>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '13px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ color: '#64748b' }}>Họ và tên:</span>
-                <span style={{ color: '#ffffff', fontWeight: 600 }}>{selectedNode.label}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ color: '#64748b' }}>Mã nhân viên (ID):</span>
-                <span style={{ color: '#38bdf8', fontFamily: 'monospace', fontWeight: 600 }}>{selectedNode.id}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ color: '#64748b' }}>Chức danh:</span>
-                <span style={{ color: '#ffffff', fontWeight: 600 }}>{selectedNode.position}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ color: '#64748b' }}>Chi nhánh:</span>
-                <span style={{ color: '#ffffff' }}>{selectedNode.branch || '—'}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ color: '#64748b' }}>Phòng ban:</span>
-                <span style={{ color: '#ffffff' }}>{selectedNode.department || '—'}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ color: '#64748b' }}>Khu vực / Miền:</span>
-                <span style={{ color: '#ffffff' }}>{selectedNode.region || '—'}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ color: '#64748b' }}>Cấp dưới trực tiếp:</span>
-                <span style={{ color: '#38bdf8', fontWeight: 600 }}>{selectedNode.directSubordinatesCount} nhân sự</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
-                <span style={{ color: '#64748b' }}>Tổng nhân sự toàn cây con:</span>
-                <span style={{ color: '#22c55e', fontWeight: 700 }}>{selectedNode.totalSubordinatesCount} nhân sự</span>
-              </div>
+            <div className="divide-y divide-slate-100 text-xs sm:text-sm">
+              {[
+                ['Họ và tên', selectedNode.label, 'font-semibold text-[#0F294A]'],
+                ['Mã nhân viên (ID)', selectedNode.id, 'font-mono font-semibold text-[#1D4ED8]'],
+                ['Chức danh', selectedNode.position, 'font-semibold text-[#0F294A]'],
+                ['Chi nhánh', selectedNode.branch || '—', 'text-slate-700'],
+                ['Phòng ban', selectedNode.department || '—', 'text-slate-700'],
+                ['Khu vực / Miền', selectedNode.region || '—', 'text-slate-700'],
+                [
+                  'Cấp dưới trực tiếp',
+                  `${selectedNode.directSubordinatesCount} nhân sự`,
+                  'font-semibold text-[#1D4ED8] tabular-nums',
+                ],
+                [
+                  'Tổng nhân sự toàn cây con',
+                  `${selectedNode.totalSubordinatesCount} nhân sự`,
+                  'font-bold text-[#0284C7] tabular-nums',
+                ],
+              ].map(([label, val, cls]) => (
+                <div key={label} className="flex justify-between items-center py-2.5 gap-4">
+                  <span className="text-slate-500">{label}:</span>
+                  <span className={cls}>{val}</span>
+                </div>
+              ))}
             </div>
 
-            <div style={{ marginTop: '20px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              <button type="button" onClick={() => onViewNode(selectedNode.id)} className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold text-sm">Xem thống kê node này</button>
+            <div className="flex justify-end gap-2.5 pt-2">
               <button
                 type="button"
                 onClick={() => setSelectedNode(null)}
-                style={{
-                  background: '#0284c7',
-                  border: 'none',
-                  color: '#ffffff',
-                  padding: '8px 18px',
-                  borderRadius: '6px',
-                  fontSize: '12px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
+                className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
               >
                 Đóng
+              </button>
+              <button
+                type="button"
+                onClick={() => onViewNode(selectedNode.id)}
+                className="px-4 py-2 rounded-xl bg-[#1D4ED8] hover:bg-[#1E40AF] text-white font-semibold text-xs cursor-pointer transition"
+              >
+                Xem thống kê node này
               </button>
             </div>
           </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ReactECharts from 'echarts-for-react';
-import { TrendingUp, PieChart, Columns2, Layers } from 'lucide-react';
+import { TrendingUp, PieChart, Columns2, Layers, Settings2, X, Save, Plus } from 'lucide-react';
 import { ReportView, DimensionFilters } from '../types/v1';
 import { apiV1 } from '../services/apiV1';
 import { TrendPoint, PivotItem } from '../types/v1';
@@ -166,32 +166,33 @@ export const TrendAndPivotSection: React.FC<Props> = ({
     return `${(v / 1e6).toFixed(0)} Tr`;
   };
 
-  // ECharts Trend Option with fast rendering & null-safe tooltip
+  // ECharts Trend Option with fast rendering & Blue/White light tooltip
   const trendOption = {
     animationDuration: 220,
     animationDurationUpdate: 150,
-    textStyle: { fontFamily: "'Be Vietnam Pro', sans-serif" },
+    textStyle: { fontFamily: "'Inter', 'Be Vietnam Pro', sans-serif" },
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(59, 130, 246, 0.05)' } },
-      backgroundColor: '#0f172a',
-      borderColor: '#334155',
-      textStyle: { color: '#f8fafc', fontSize: 12 },
+      axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(29, 78, 216, 0.06)' } },
+      backgroundColor: '#ffffff',
+      borderColor: '#dbeafe',
+      borderWidth: 1,
+      textStyle: { color: '#0f294a', fontSize: 12 },
+      extraCssText: 'box-shadow: 0 10px 25px -5px rgba(15, 41, 74, 0.14); border-radius: 10px;',
       padding: [10, 14],
-      borderRadius: 8,
       formatter: (params: any) => {
-        let res = `<div style="font-weight:700;margin-bottom:6px;color:#94a3b8">${params[0]?.axisValue || ''}</div>`;
+        let res = `<div style="font-weight:700;margin-bottom:6px;color:#0f294a">${params[0]?.axisValue || ''}</div>`;
         params.forEach((item: any) => {
           const val = item.value === null || item.value === undefined
             ? 'Không có quyền'
             : new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(item.value);
-          res += `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin:4px 0;">
-            <span style="display:inline-flex;align-items:center;gap:6px;">
-              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${item.color}"></span>
+          res += `<div style="display:flex;align-items:center;justify-content:space-between;gap:16px;margin:4px 0;font-variant-numeric:tabular-nums;">
+            <span style="display:inline-flex;align-items:center;gap:6px;color:#475569;">
+              <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${item.seriesIndex === 0 ? '#1d4ed8' : '#0284c7'}"></span>
               <span>${item.seriesName}</span>
             </span>
-            <strong style="color:#ffffff">${val}</strong>
+            <strong style="color:#0f294a">${val}</strong>
           </div>`;
         });
         return res;
@@ -252,7 +253,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({
         type: 'bar',
         barMaxWidth: 32,
         itemStyle: {
-          borderRadius: [6, 6, 0, 0],
+          borderRadius: [5, 5, 0, 0],
           color: {
             type: 'linear',
             x: 0, y: 0, x2: 0, y2: 1,
@@ -271,15 +272,15 @@ export const TrendAndPivotSection: React.FC<Props> = ({
         smooth: true,
         showSymbol: true,
         symbolSize: 8,
-        lineStyle: { width: 3.5, color: '#10b981' },
-        itemStyle: { color: '#10b981', borderColor: '#ffffff', borderWidth: 2 },
+        lineStyle: { width: 3, color: '#0284c7' },
+        itemStyle: { color: '#0284c7', borderColor: '#ffffff', borderWidth: 2 },
         areaStyle: {
           color: {
             type: 'linear',
             x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [
-              { offset: 0, color: 'rgba(16, 185, 129, 0.25)' },
-              { offset: 1, color: 'rgba(16, 185, 129, 0.0)' },
+              { offset: 0, color: 'rgba(2, 132, 199, 0.18)' },
+              { offset: 1, color: 'rgba(2, 132, 199, 0.0)' },
             ],
           },
         },
@@ -290,17 +291,20 @@ export const TrendAndPivotSection: React.FC<Props> = ({
 
   // Dedicated Sales Chart (when in split mode)
   const salesOption = {
+    textStyle: { fontFamily: "'Inter', 'Be Vietnam Pro', sans-serif" },
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'shadow' },
-      backgroundColor: '#0f172a',
-      borderColor: '#334155',
-      textStyle: { color: '#f8fafc', fontSize: 12 },
+      axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(29, 78, 216, 0.06)' } },
+      backgroundColor: '#ffffff',
+      borderColor: '#dbeafe',
+      borderWidth: 1,
+      textStyle: { color: '#0f294a', fontSize: 12 },
+      extraCssText: 'box-shadow: 0 10px 25px -5px rgba(15, 41, 74, 0.14); border-radius: 10px;',
       formatter: (params: any) => {
         const item = params[0];
         const val = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(item?.value || 0);
-        return `<div style="font-weight:700;margin-bottom:4px;color:#94a3b8">${item?.axisValue || ''}</div><div style="color:#60a5fa;font-weight:bold">${item?.seriesName}: ${val}</div>`;
+        return `<div style="font-weight:700;margin-bottom:4px;color:#0f294a">${item?.axisValue || ''}</div><div style="color:#1d4ed8;font-weight:700;font-variant-numeric:tabular-nums">${item?.seriesName}: ${val}</div>`;
       },
     },
     grid: { left: '3%', right: '3%', top: '15%', bottom: '12%', containLabel: true },
@@ -327,7 +331,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({
         type: 'bar',
         barMaxWidth: 36,
         itemStyle: {
-          borderRadius: [6, 6, 0, 0],
+          borderRadius: [5, 5, 0, 0],
           color: {
             type: 'linear',
             x: 0, y: 0, x2: 0, y2: 1,
@@ -344,17 +348,20 @@ export const TrendAndPivotSection: React.FC<Props> = ({
 
   // Dedicated Balance Chart (when in split mode - with dynamic zoomed axis)
   const balanceOption = {
+    textStyle: { fontFamily: "'Inter', 'Be Vietnam Pro', sans-serif" },
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
-      axisPointer: { type: 'line', lineStyle: { color: '#10b981', type: 'dashed' } },
-      backgroundColor: '#0f172a',
-      borderColor: '#334155',
-      textStyle: { color: '#f8fafc', fontSize: 12 },
+      axisPointer: { type: 'line', lineStyle: { color: '#0284c7', type: 'dashed' } },
+      backgroundColor: '#ffffff',
+      borderColor: '#dbeafe',
+      borderWidth: 1,
+      textStyle: { color: '#0f294a', fontSize: 12 },
+      extraCssText: 'box-shadow: 0 10px 25px -5px rgba(15, 41, 74, 0.14); border-radius: 10px;',
       formatter: (params: any) => {
         const item = params[0];
         const val = new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(item?.value || 0);
-        return `<div style="font-weight:700;margin-bottom:4px;color:#94a3b8">${item?.axisValue || ''}</div><div style="color:#34d399;font-weight:bold">${item?.seriesName}: ${val}</div>`;
+        return `<div style="font-weight:700;margin-bottom:4px;color:#0f294a">${item?.axisValue || ''}</div><div style="color:#0284c7;font-weight:700;font-variant-numeric:tabular-nums">${item?.seriesName}: ${val}</div>`;
       },
     },
     grid: { left: '3%', right: '3%', top: '15%', bottom: '12%', containLabel: true },
@@ -385,15 +392,15 @@ export const TrendAndPivotSection: React.FC<Props> = ({
         smooth: true,
         showSymbol: true,
         symbolSize: 8,
-        lineStyle: { width: 3.5, color: '#10b981' },
-        itemStyle: { color: '#10b981', borderColor: '#ffffff', borderWidth: 2 },
+        lineStyle: { width: 3, color: '#0284c7' },
+        itemStyle: { color: '#0284c7', borderColor: '#ffffff', borderWidth: 2 },
         areaStyle: {
           color: {
             type: 'linear',
             x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [
-              { offset: 0, color: 'rgba(16, 185, 129, 0.25)' },
-              { offset: 1, color: 'rgba(16, 185, 129, 0.0)' },
+              { offset: 0, color: 'rgba(2, 132, 199, 0.2)' },
+              { offset: 1, color: 'rgba(2, 132, 199, 0.0)' },
             ],
           },
         },
@@ -424,14 +431,18 @@ export const TrendAndPivotSection: React.FC<Props> = ({
     .sort((a, b) => b.value - a.value);
 
   const donutOption = {
+    textStyle: { fontFamily: "'Inter', 'Be Vietnam Pro', sans-serif" },
+    color: ['#1d4ed8', '#0284c7', '#3b82f6', '#38bdf8', '#6366f1', '#1e40af', '#0ea5e9', '#94a3b8'],
     tooltip: {
       trigger: 'item',
       confine: true,
-      backgroundColor: '#0f172a',
-      borderColor: '#334155',
-      textStyle: { color: '#f8fafc', fontSize: 12 },
+      backgroundColor: '#ffffff',
+      borderColor: '#dbeafe',
+      borderWidth: 1,
+      textStyle: { color: '#0f294a', fontSize: 12 },
+      extraCssText: 'box-shadow: 0 10px 25px -5px rgba(15, 41, 74, 0.14); border-radius: 10px;',
       formatter: (params: { name: string; value: number; percent: number }) =>
-        `<div style="font-weight:700;margin-bottom:2px">${params.name}</div><div><b>${formatMoney(String(params.value))}</b> (${params.percent}%)</div>`,
+        `<div style="font-weight:700;margin-bottom:2px;color:#0f294a">${params.name}</div><div style="font-variant-numeric:tabular-nums"><b>${formatMoney(String(params.value))}</b> (${params.percent}%)</div>`,
     },
     legend: {
       type: 'scroll',
@@ -442,7 +453,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({
       textStyle: { color: '#64748b', fontSize: 11 },
       itemWidth: 10,
       itemHeight: 10,
-      pageIconColor: '#4f46e5',
+      pageIconColor: '#1d4ed8',
       pageTextStyle: { color: '#64748b', fontSize: 11 },
     },
     series: [
@@ -478,16 +489,16 @@ export const TrendAndPivotSection: React.FC<Props> = ({
     <div className="space-y-6">
       {error && <p role="alert" className="p-4 rounded-xl bg-rose-50 text-rose-800">{error} <button onClick={() => setRevision(n => n + 1)} className="underline font-semibold">Thử lại</button></p>}
       {/* 1. Trend Section */}
-      <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-5 space-y-4">
+      <div className="bg-white rounded-xl shadow-xs border border-slate-200/90 p-5 space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3 border-slate-100">
           <h3
-            className="font-extrabold text-slate-900 text-sm sm:text-base flex items-center gap-2"
-            title="Doanh số phát sinh trong kỳ (cột xanh) & Số dư lũy kế tại ngày cuối từng mốc (đường xanh ngọc)."
+            className="font-bold text-[#0F294A] text-sm sm:text-base flex items-center gap-2"
+            title="Doanh số phát sinh trong kỳ (cột xanh dương) & Số dư lũy kế tại ngày cuối từng mốc."
           >
-            <span className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+            <span className="w-7 h-7 rounded-lg bg-[#EFF6FF] text-[#1D4ED8] flex items-center justify-center shrink-0">
               <TrendingUp size={16} />
             </span>
-            <span>Xu hướng Doanh số & Số dư</span>
+            <span>Xu hướng Doanh số &amp; Số dư</span>
           </h3>
 
           {/* Segmented Control */}
@@ -498,7 +509,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({
                   aria-label="Mốc tuần"
                   value={weekMode}
                   onChange={(e) => setWeekMode(e.target.value as any)}
-                  className="bg-white border border-slate-200 rounded-lg px-2 py-0.5 text-xs font-bold text-slate-700 focus:outline-none shadow-2xs"
+                  className="bg-white border border-slate-200 rounded-lg px-2 py-0.5 text-xs font-semibold text-[#0F294A] focus:outline-none"
                 >
                   <option value="standard">T2 – CN</option>
                   <option value="business4week">4 mốc (1-7, 8-15, 16-22, 23-cuối)</option>
@@ -509,7 +520,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({
                   <button
                     type="button"
                     onClick={openWeekModal}
-                    className="px-2 py-0.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition cursor-pointer"
+                    className="px-2 py-0.5 bg-[#1D4ED8] hover:bg-[#1E40AF] text-white rounded-lg text-xs font-semibold transition cursor-pointer"
                   >
                     Cài đặt ({customIntervals.length})
                   </button>
@@ -522,10 +533,10 @@ export const TrendAndPivotSection: React.FC<Props> = ({
                 type="button"
                 onClick={() => setChartViewMode('split')}
                 title="Tách riêng 2 biểu đồ Doanh số & Số dư"
-                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
                   chartViewMode === 'split'
-                    ? 'bg-white text-emerald-700 shadow-xs border border-slate-200/50'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-[#1D4ED8] shadow-2xs border border-[#DBEAFE]'
+                    : 'text-slate-600 hover:text-[#0F294A]'
                 }`}
               >
                 <Columns2 size={13} /> Tách
@@ -534,10 +545,10 @@ export const TrendAndPivotSection: React.FC<Props> = ({
                 type="button"
                 onClick={() => setChartViewMode('combined')}
                 title="Gộp chung 2 trục Doanh số & Số dư"
-                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
                   chartViewMode === 'combined'
-                    ? 'bg-white text-blue-600 shadow-xs border border-slate-200/50'
-                    : 'text-slate-600 hover:text-slate-900'
+                    ? 'bg-white text-[#1D4ED8] shadow-2xs border border-[#DBEAFE]'
+                    : 'text-slate-600 hover:text-[#0F294A]'
                 }`}
               >
                 <Layers size={13} /> Gộp
@@ -552,10 +563,10 @@ export const TrendAndPivotSection: React.FC<Props> = ({
                   <button
                     key={p}
                     onClick={() => setPeriod(p)}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
                       isActive
-                        ? 'bg-white text-blue-600 shadow-xs border border-slate-200/50'
-                        : 'text-slate-600 hover:text-slate-900'
+                        ? 'bg-white text-[#1D4ED8] shadow-2xs border border-[#DBEAFE]'
+                        : 'text-slate-600 hover:text-[#0F294A]'
                     }`}
                   >
                     {label}
@@ -568,7 +579,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({
 
         {loading ? (
           <div className="h-72 flex flex-col items-center justify-center text-slate-400 space-y-2">
-            <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            <div className="w-8 h-8 border-3 border-[#1D4ED8] border-t-transparent rounded-full animate-spin" />
             <span className="text-xs font-medium">Đang tải biểu đồ...</span>
           </div>
         ) : trendData.length === 0 ? (
@@ -577,12 +588,12 @@ export const TrendAndPivotSection: React.FC<Props> = ({
           </div>
         ) : chartViewMode === 'split' ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className="border border-slate-100 rounded-xl p-3 bg-slate-50/40">
-              <div className="text-xs font-extrabold text-blue-700 mb-1 px-2">Doanh số</div>
+            <div className="border border-[#DBEAFE] rounded-xl p-3 bg-[#F8FAFC]">
+              <div className="text-xs font-bold text-[#1D4ED8] mb-1 px-2">Doanh số phát sinh</div>
               <ReactECharts option={salesOption} style={{ height: compact ? '240px' : '300px', width: '100%' }} />
             </div>
-            <div className="border border-emerald-100 rounded-xl p-3 bg-emerald-50/20">
-              <div className="text-xs font-extrabold text-emerald-800 mb-1 px-2">Số dư</div>
+            <div className="border border-[#DBEAFE] rounded-xl p-3 bg-[#F8FAFC]">
+              <div className="text-xs font-bold text-[#0284C7] mb-1 px-2">Số dư nguồn vốn</div>
               <ReactECharts option={balanceOption} style={{ height: compact ? '240px' : '300px', width: '100%' }} />
             </div>
           </div>
@@ -594,13 +605,13 @@ export const TrendAndPivotSection: React.FC<Props> = ({
       {!compact && <>
       {/* 2. Pivot & Shares Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-xs border border-slate-200/80 p-5 space-y-4">
+        <div className="lg:col-span-2 bg-white rounded-xl shadow-xs border border-slate-200/90 p-5 space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3 border-slate-100">
-            <h3 className="font-extrabold text-slate-900 text-sm sm:text-base flex items-center gap-2">
-              <span className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+            <h3 className="font-bold text-[#0F294A] text-sm sm:text-base flex items-center gap-2">
+              <span className="w-7 h-7 rounded-lg bg-[#EFF6FF] text-[#1D4ED8] flex items-center justify-center shrink-0">
                 <PieChart size={16} />
               </span>
-              <span>Cơ cấu & Tỷ trọng</span>
+              <span>Cơ cấu &amp; Tỷ trọng</span>
             </h3>
 
             <div className="flex items-center space-x-2">
@@ -608,7 +619,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({
                 aria-label="Phân loại"
                 value={groupBy}
                 onChange={(e) => setGroupBy(e.target.value as any)}
-                className="text-xs font-bold border-slate-300 rounded-lg px-3 py-1.5 border bg-slate-50 focus:bg-white text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+                className="text-xs font-semibold border-slate-200 rounded-lg px-3 py-1.5 border bg-slate-50 focus:bg-white text-[#0F294A] focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/20"
               >
                 <option value="product">Sản phẩm</option>
                 <option value="term">Kỳ hạn</option>
@@ -619,30 +630,30 @@ export const TrendAndPivotSection: React.FC<Props> = ({
             </div>
           </div>
 
-          <div className="border border-slate-200/80 rounded-xl overflow-hidden shadow-2xs">
+          <div className="border border-slate-200/90 rounded-xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-slate-200 text-xs">
-                <thead className="bg-slate-50/80">
+                <thead className="bg-[#F8FAFC]">
                   <tr>
-                    <th className="px-3.5 py-3 text-left font-bold text-slate-600 uppercase tracking-wider text-[11px]">
+                    <th className="px-3.5 py-3 text-left font-semibold text-[#0F294A] uppercase tracking-wider text-[11px]">
                       Phân Nhóm
                     </th>
-                    <th className="px-3.5 py-3 text-right font-bold text-slate-600 uppercase tracking-wider text-[11px]">
+                    <th className="px-3.5 py-3 text-right font-semibold text-[#0F294A] uppercase tracking-wider text-[11px]">
                       Doanh Số (VND)
                     </th>
-                    <th className="px-3.5 py-3 text-center font-bold text-slate-600 uppercase tracking-wider text-[11px] w-28">
+                    <th className="px-3.5 py-3 text-center font-semibold text-[#0F294A] uppercase tracking-wider text-[11px] w-28">
                       Tỷ Trọng DS
                     </th>
-                    <th className="px-3.5 py-3 text-right font-bold text-slate-600 uppercase tracking-wider text-[11px]">
+                    <th className="px-3.5 py-3 text-right font-semibold text-[#0F294A] uppercase tracking-wider text-[11px]">
                       Số Dư Tại T
                     </th>
-                    <th className="px-3.5 py-3 text-center font-bold text-slate-600 uppercase tracking-wider text-[11px] w-28">
+                    <th className="px-3.5 py-3 text-center font-semibold text-[#0F294A] uppercase tracking-wider text-[11px] w-28">
                       Tỷ Trọng Dư
                     </th>
-                    <th className="px-3.5 py-3 text-right font-bold text-slate-600 uppercase tracking-wider text-[11px]">
+                    <th className="px-3.5 py-3 text-right font-semibold text-[#0F294A] uppercase tracking-wider text-[11px]">
                       Số HĐ
                     </th>
-                    <th className="px-3.5 py-3 text-right font-bold text-slate-600 uppercase tracking-wider text-[11px]">
+                    <th className="px-3.5 py-3 text-right font-semibold text-[#0F294A] uppercase tracking-wider text-[11px]">
                       Số KH
                     </th>
                   </tr>
@@ -656,46 +667,55 @@ export const TrendAndPivotSection: React.FC<Props> = ({
                     </tr>
                   ) : (
                     pivotData.map((item) => (
-                      <tr key={item.groupKey} className="hover:bg-blue-50/40 transition-colors">
-                        <td className="px-3.5 py-2.5 font-semibold text-slate-800">
-                          {onDrillDown && groupBy !== 'branch' ? <button onClick={() => onDrillDown(groupBy, item.groupKey)} className="text-blue-700 underline underline-offset-4">{item.groupName || 'Chưa xác định'}</button> : item.groupName || 'Chưa xác định'}
+                      <tr key={item.groupKey} className="hover:bg-[#EFF6FF]/60 transition-colors">
+                        <td className="px-3.5 py-2.5 font-semibold text-[#0F294A]">
+                          {onDrillDown && groupBy !== 'branch' ? (
+                            <button
+                              onClick={() => onDrillDown(groupBy, item.groupKey)}
+                              className="text-[#1D4ED8] hover:underline underline-offset-4 cursor-pointer text-left"
+                            >
+                              {item.groupName || 'Chưa xác định'}
+                            </button>
+                          ) : (
+                            item.groupName || 'Chưa xác định'
+                          )}
                         </td>
-                        <td className="px-3.5 py-2.5 text-right font-bold text-blue-900">
+                        <td className="px-3.5 py-2.5 text-right font-bold text-[#0F294A] tabular-nums">
                           {formatMoney(item.totalSales)}
                         </td>
-                        <td className="px-3.5 py-2.5">
+                        <td className="px-3.5 py-2.5 tabular-nums">
                           <div className="flex items-center gap-1.5 justify-end">
                             <div className="w-14 bg-slate-100 rounded-full h-1.5 overflow-hidden">
                               <div
-                                className="bg-blue-500 h-1.5 rounded-full"
+                                className="bg-[#1D4ED8] h-1.5 rounded-full"
                                 style={{ width: `${Math.min(100, item.salesSharePercent || 0)}%` }}
                               />
                             </div>
-                            <span className="font-bold text-blue-600 text-[11px] w-10 text-right">
+                            <span className="font-semibold text-[#1D4ED8] text-[11px] w-10 text-right">
                               {item.salesSharePercent === null ? '—' : item.salesSharePercent.toFixed(1)}%
                             </span>
                           </div>
                         </td>
-                        <td className="px-3.5 py-2.5 text-right font-bold text-emerald-900">
+                        <td className="px-3.5 py-2.5 text-right font-bold text-[#0284C7] tabular-nums">
                           {formatMoney(item.totalBalance)}
                         </td>
-                        <td className="px-3.5 py-2.5">
+                        <td className="px-3.5 py-2.5 tabular-nums">
                           <div className="flex items-center gap-1.5 justify-end">
                             <div className="w-14 bg-slate-100 rounded-full h-1.5 overflow-hidden">
                               <div
-                                className="bg-emerald-500 h-1.5 rounded-full"
+                                className="bg-[#0284C7] h-1.5 rounded-full"
                                 style={{ width: `${Math.min(100, item.balanceSharePercent || 0)}%` }}
                               />
                             </div>
-                            <span className="font-bold text-emerald-600 text-[11px] w-10 text-right">
+                            <span className="font-semibold text-[#0284C7] text-[11px] w-10 text-right">
                               {item.balanceSharePercent === null ? '—' : item.balanceSharePercent.toFixed(1)}%
                             </span>
                           </div>
                         </td>
-                        <td className="px-3.5 py-2.5 text-right font-medium text-slate-700">
+                        <td className="px-3.5 py-2.5 text-right font-medium text-slate-700 tabular-nums">
                           {item.contractCount?.toLocaleString('vi-VN') ?? 'Không có quyền'}
                         </td>
-                        <td className="px-3.5 py-2.5 text-right font-medium text-slate-700">
+                        <td className="px-3.5 py-2.5 text-right font-medium text-slate-700 tabular-nums">
                           {item.customerCount?.toLocaleString('vi-VN') ?? 'Không có quyền'}
                         </td>
                       </tr>
@@ -708,9 +728,9 @@ export const TrendAndPivotSection: React.FC<Props> = ({
         </div>
 
         {/* Share Donut Chart */}
-        <div className="bg-white rounded-2xl shadow-xs border border-slate-200/80 p-5 flex flex-col justify-between">
-          <h3 className="font-extrabold text-slate-900 text-sm flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
+        <div className="bg-white rounded-xl shadow-xs border border-slate-200/90 p-5 flex flex-col justify-between">
+          <h3 className="font-bold text-[#0F294A] text-sm flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg bg-[#EFF6FF] text-[#1D4ED8] flex items-center justify-center shrink-0">
               <PieChart size={15} />
             </span>
             <span>Tỷ trọng Doanh số</span>
@@ -719,7 +739,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({
           <div className="my-auto py-2">
             {loading ? (
               <div className="h-64 flex flex-col items-center justify-center text-slate-400 space-y-2">
-                <div className="w-7 h-7 border-3 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                <div className="w-7 h-7 border-3 border-[#1D4ED8] border-t-transparent rounded-full animate-spin" />
               </div>
             ) : pivotData.length === 0 ? (
               <div className="h-64 flex items-center justify-center text-slate-400 text-xs">
@@ -730,7 +750,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({
             )}
           </div>
 
-          <div className="text-[11px] text-slate-400 text-center border-t border-slate-100 pt-2.5">
+          <div className="text-[11px] text-slate-400 text-center border-t border-slate-100 pt-2.5 tabular-nums">
             {pivotData.length} nhóm
           </div>
         </div>
@@ -739,24 +759,27 @@ export const TrendAndPivotSection: React.FC<Props> = ({
       </>}
       {/* Modal Cài Đặt Mốc Tuần Tùy Chỉnh */}
       {isWeekModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100 space-y-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-[2px]">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <span className="text-lg">⚙️</span>
-                <h3 className="text-base font-extrabold text-slate-900">Cài Đặt Mốc Tuần Theo Ngày Làm Việc</h3>
+                <span className="w-8 h-8 rounded-xl bg-[#EFF6FF] text-[#1D4ED8] flex items-center justify-center">
+                  <Settings2 size={16} />
+                </span>
+                <h3 className="text-base font-bold text-[#0F294A]">Cài Đặt Mốc Tuần Theo Ngày Làm Việc</h3>
               </div>
               <button
                 type="button"
                 onClick={() => setIsWeekModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 font-bold text-sm cursor-pointer"
+                aria-label="Đóng"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-[#0F294A] hover:bg-slate-100 cursor-pointer"
               >
-                ✕
+                <X size={16} />
               </button>
             </div>
 
             <p className="text-xs text-slate-500">
-              Tùy chỉnh các khoảng thời gian (Từ ngày ➔ Đến ngày) cho từng cột Tuần theo lịch làm việc riêng của công ty:
+              Tùy chỉnh các khoảng thời gian (Từ ngày → Đến ngày) cho từng cột Tuần theo lịch làm việc riêng của công ty:
             </p>
 
             {/* List of intervals */}
@@ -773,7 +796,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({
                         next[idx].label = e.target.value;
                         setTempIntervals(next);
                       }}
-                      className="font-bold text-slate-800 bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-xs w-48 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="font-semibold text-[#0F294A] bg-white border border-slate-200 px-2.5 py-1 rounded-lg text-xs w-48 focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/20 focus:border-[#1D4ED8]"
                     />
                     {tempIntervals.length > 1 && (
                       <button
@@ -781,9 +804,10 @@ export const TrendAndPivotSection: React.FC<Props> = ({
                         onClick={() => {
                           setTempIntervals(tempIntervals.filter((_, i) => i !== idx));
                         }}
-                        className="text-rose-500 hover:text-rose-700 font-bold text-xs cursor-pointer"
+                        className="inline-flex items-center gap-1 text-rose-600 hover:text-rose-700 font-semibold text-xs cursor-pointer"
                       >
-                        ✕ Xóa
+                        <X size={13} />
+                        <span>Xóa</span>
                       </button>
                     )}
                   </div>
@@ -796,9 +820,9 @@ export const TrendAndPivotSection: React.FC<Props> = ({
                         next[idx].start = e.target.value;
                         setTempIntervals(next);
                       }}
-                      className="bg-white border border-slate-200 px-2 py-1 rounded-lg text-xs font-semibold text-slate-700"
+                      className="bg-white border border-slate-200 px-2 py-1 rounded-lg text-xs font-semibold text-[#0F294A] tabular-nums"
                     />
-                    <span className="text-slate-400 font-bold">➔</span>
+                    <span className="text-slate-400 font-bold">→</span>
                     <input
                       type="date"
                       value={item.end}
@@ -807,7 +831,7 @@ export const TrendAndPivotSection: React.FC<Props> = ({
                         next[idx].end = e.target.value;
                         setTempIntervals(next);
                       }}
-                      className="bg-white border border-slate-200 px-2 py-1 rounded-lg text-xs font-semibold text-slate-700"
+                      className="bg-white border border-slate-200 px-2 py-1 rounded-lg text-xs font-semibold text-[#0F294A] tabular-nums"
                     />
                   </div>
                 </div>
@@ -827,9 +851,10 @@ export const TrendAndPivotSection: React.FC<Props> = ({
                   },
                 ]);
               }}
-              className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-bold transition cursor-pointer"
+              className="w-full py-2 inline-flex items-center justify-center gap-1.5 bg-[#EFF6FF] hover:bg-blue-100 text-[#1D4ED8] border border-[#DBEAFE] rounded-xl text-xs font-semibold transition cursor-pointer"
             >
-              + Thêm mốc tuần mới
+              <Plus size={14} />
+              <span>Thêm mốc tuần mới</span>
             </button>
 
             <div className="flex justify-end gap-2.5 pt-3 border-t border-slate-100">
@@ -843,9 +868,10 @@ export const TrendAndPivotSection: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => handleSaveCustomIntervals(tempIntervals)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition shadow-xs cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#1D4ED8] hover:bg-[#1E40AF] text-white rounded-xl text-xs font-semibold transition shadow-xs cursor-pointer"
               >
-                💾 Lưu Mốc Tuần
+                <Save size={14} />
+                <span>Lưu Mốc Tuần</span>
               </button>
             </div>
           </div>

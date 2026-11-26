@@ -1,4 +1,19 @@
 import React, { useState, useEffect } from 'react';
+import {
+  Users,
+  Plus,
+  Settings,
+  Trash2,
+  Globe,
+  Building2,
+  FolderOpen,
+  User,
+  MapPin,
+  X,
+  AlertTriangle,
+  Check,
+  Target,
+} from 'lucide-react';
 import { dashboardApi } from '../services/api';
 import { UserAccount, TreeFlatNode } from '../types';
 
@@ -6,12 +21,11 @@ interface Props {
   branches: string[];
 }
 
-export const UserManagement: React.FC<Props> = ({ branches }) => {
+export const UserManagement: React.FC<Props> = () => {
   const [users, setUsers] = useState<UserAccount[]>([]);
   const [flatNodes, setFlatNodes] = useState<TreeFlatNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
 
   // Form states for Create User
   const [username, setUsername] = useState('');
@@ -66,7 +80,6 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
 
     setFormError(null);
 
-    // Resolve node details
     const chosenNode = flatNodes.find((n) => n.id === selectedNodeId && n.scopeType === scopeType);
     const branchAccess = scopeType === 'BRANCH' ? selectedNodeId : undefined;
 
@@ -149,7 +162,6 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
     }
   };
 
-  // Filter flat nodes by chosen scope type
   const getFilteredNodes = (type: string) => {
     if (type === 'ALL') return [];
     return flatNodes.filter((n) => n.scopeType === type);
@@ -161,17 +173,17 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
 
     if (type === 'ALL') {
       return (
-        <span className="inline-flex items-center gap-1 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2.5 py-1 rounded-md text-xs font-semibold">
-          <span>🌐</span>
-          <span>Toàn hệ thống (Toàn quốc)</span>
+        <span className="inline-flex items-center gap-1.5 bg-[#EFF6FF] text-[#1D4ED8] border border-[#DBEAFE] px-2.5 py-1 rounded-lg text-xs font-semibold">
+          <Globe size={13} />
+          <span>Toàn hệ thống</span>
         </span>
       );
     }
 
     if (type === 'REGION') {
       return (
-        <span className="inline-flex items-center gap-1 bg-purple-500/15 text-purple-300 border border-purple-500/30 px-2.5 py-1 rounded-md text-xs font-semibold">
-          <span>🌐</span>
+        <span className="inline-flex items-center gap-1.5 bg-[#E0F2FE] text-[#0369A1] border border-[#BAE6FD] px-2.5 py-1 rounded-lg text-xs font-semibold">
+          <MapPin size={13} />
           <span>Miền: {nodeName}</span>
         </span>
       );
@@ -179,8 +191,8 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
 
     if (type === 'BRANCH') {
       return (
-        <span className="inline-flex items-center gap-1 bg-blue-500/15 text-blue-300 border border-blue-500/30 px-2.5 py-1 rounded-md text-xs font-semibold">
-          <span>🏛️</span>
+        <span className="inline-flex items-center gap-1.5 bg-[#EFF6FF] text-[#1E40AF] border border-[#BFDBFE] px-2.5 py-1 rounded-lg text-xs font-semibold">
+          <Building2 size={13} />
           <span>Chi nhánh: {nodeName}</span>
         </span>
       );
@@ -188,34 +200,40 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
 
     if (type === 'DEPARTMENT') {
       return (
-        <span className="inline-flex items-center gap-1 bg-teal-500/15 text-teal-300 border border-teal-500/30 px-2.5 py-1 rounded-md text-xs font-semibold">
-          <span>📑</span>
+        <span className="inline-flex items-center gap-1.5 bg-slate-100 text-[#0F294A] border border-slate-200 px-2.5 py-1 rounded-lg text-xs font-semibold">
+          <FolderOpen size={13} />
           <span>Phòng: {nodeName}</span>
         </span>
       );
     }
 
-    // EMPLOYEE_SUBTREE
     return (
-      <span className="inline-flex items-center gap-1 bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2.5 py-1 rounded-md text-xs font-semibold">
-        <span>👤</span>
+      <span className="inline-flex items-center gap-1.5 bg-slate-50 text-slate-700 border border-slate-200 px-2.5 py-1 rounded-lg text-xs font-semibold">
+        <User size={13} />
         <span>Cây con: {nodeName}</span>
       </span>
     );
   };
 
+  const inputCls =
+    'w-full text-xs border border-slate-200 rounded-xl p-2.5 bg-white text-[#0F294A] focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#1D4ED8]/15 outline-none';
+
   return (
-    <div className="bg-[#112240] rounded-2xl shadow-xl border border-[#233554] p-6 space-y-6 text-slate-100">
+    <div className="bg-white rounded-xl shadow-xs border border-slate-200/90 p-5 sm:p-6 space-y-6">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
-        <div>
-          <h2 className="text-base font-extrabold text-white uppercase tracking-wide flex items-center space-x-2">
-            <span className="p-1 rounded-md bg-amber-500/20 text-amber-400">👥</span>
-            <span>Quản Trị Người Dùng & Phân Quyền Theo Node Cây Con</span>
-          </h2>
-          <p className="text-xs text-slate-400 mt-1 font-medium">
-            Admin có thể cấp quyền cho từng tài khoản xem dữ liệu của toàn bộ Node (Toàn quốc, Miền, Chi nhánh, Phòng ban, hoặc Cây con của Chuyên viên/Trưởng phòng).
-          </p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-xl bg-[#EFF6FF] text-[#1D4ED8] flex items-center justify-center shrink-0 mt-0.5">
+            <Users size={18} />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-[#0F294A]">
+              Quản Trị Người Dùng &amp; Phân Quyền Theo Node Cây Con
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Cấp quyền từng tài khoản xem dữ liệu theo Toàn quốc, Miền, Chi nhánh, Phòng ban hoặc Cây con nhân sự.
+            </p>
+          </div>
         </div>
 
         <button
@@ -224,9 +242,9 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
             setFormError(null);
             setFormSuccess(null);
           }}
-          className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-lg transition flex items-center gap-2 cursor-pointer self-start sm:self-auto"
+          className="bg-[#1D4ED8] hover:bg-[#1E40AF] text-white text-xs font-semibold px-4 py-2.5 rounded-xl shadow-xs transition inline-flex items-center gap-2 cursor-pointer self-start sm:self-auto"
         >
-          <span>＋</span>
+          <Plus size={15} />
           <span>Tạo tài khoản mới</span>
         </button>
       </div>
@@ -234,45 +252,43 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
       {/* Users List Table */}
       {loading ? (
         <div className="p-12 text-center text-slate-400">
-          <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+          <div className="w-8 h-8 border-3 border-[#1D4ED8] border-t-transparent rounded-full animate-spin mx-auto mb-2" />
           <span className="text-xs font-medium">Đang tải danh sách người dùng...</span>
         </div>
       ) : (
-        <div className="border border-white/10 rounded-xl overflow-hidden shadow-md">
+        <div className="border border-slate-200 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-white/10 text-xs">
-              <thead className="bg-[#0a192f]">
+            <table className="min-w-full divide-y divide-slate-200 text-xs">
+              <thead className="bg-[#F8FAFC]">
                 <tr>
-                  <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase tracking-wider text-[11px]">ID</th>
-                  <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase tracking-wider text-[11px]">Tên Đăng Nhập</th>
-                  <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase tracking-wider text-[11px]">Họ Và Tên</th>
-                  <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase tracking-wider text-[11px]">Vai Trò</th>
-                  <th className="px-4 py-3 text-left font-bold text-slate-400 uppercase tracking-wider text-[11px]">Phạm Vi Quyền Xem (Subtree Scope)</th>
-                  <th className="px-4 py-3 text-center font-bold text-slate-400 uppercase tracking-wider text-[11px]">Ngày Tạo</th>
-                  <th className="px-4 py-3 text-center font-bold text-slate-400 uppercase tracking-wider text-[11px]">Thao Tác</th>
+                  <th className="px-4 py-3 text-left font-semibold text-[#0F294A] uppercase tracking-wider text-[11px]">ID</th>
+                  <th className="px-4 py-3 text-left font-semibold text-[#0F294A] uppercase tracking-wider text-[11px]">Tên Đăng Nhập</th>
+                  <th className="px-4 py-3 text-left font-semibold text-[#0F294A] uppercase tracking-wider text-[11px]">Họ Và Tên</th>
+                  <th className="px-4 py-3 text-left font-semibold text-[#0F294A] uppercase tracking-wider text-[11px]">Vai Trò</th>
+                  <th className="px-4 py-3 text-left font-semibold text-[#0F294A] uppercase tracking-wider text-[11px]">Phạm Vi Quyền Xem</th>
+                  <th className="px-4 py-3 text-center font-semibold text-[#0F294A] uppercase tracking-wider text-[11px]">Ngày Tạo</th>
+                  <th className="px-4 py-3 text-center font-semibold text-[#0F294A] uppercase tracking-wider text-[11px]">Thao Tác</th>
                 </tr>
               </thead>
-              <tbody className="bg-[#112240] divide-y divide-white/5">
+              <tbody className="bg-white divide-y divide-slate-100">
                 {users.map((u) => (
-                  <tr key={u.id} className="hover:bg-white/5 transition-colors">
-                    <td className="px-4 py-3 text-slate-400 font-mono">#{u.id}</td>
-                    <td className="px-4 py-3 font-bold text-blue-400">{u.username}</td>
-                    <td className="px-4 py-3 font-semibold text-white">{u.fullName}</td>
+                  <tr key={u.id} className="hover:bg-[#EFF6FF]/50 transition-colors">
+                    <td className="px-4 py-3 text-slate-400 font-mono tabular-nums">#{u.id}</td>
+                    <td className="px-4 py-3 font-bold text-[#1D4ED8]">{u.username}</td>
+                    <td className="px-4 py-3 font-semibold text-[#0F294A]">{u.fullName}</td>
                     <td className="px-4 py-3">
                       <span
                         className={`inline-block px-2.5 py-0.5 rounded-md text-[10px] font-bold border ${
                           u.role === 'admin'
-                            ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
-                            : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                            ? 'bg-[#1D4ED8] text-white border-[#1D4ED8]'
+                            : 'bg-slate-100 text-slate-700 border-slate-200'
                         }`}
                       >
                         {u.role === 'admin' ? 'QUẢN TRỊ VIÊN' : 'NGƯỜI DÙNG'}
                       </span>
                     </td>
-                    <td className="px-4 py-3">
-                      {renderScopeBadge(u)}
-                    </td>
-                    <td className="px-4 py-3 text-center text-slate-400">
+                    <td className="px-4 py-3">{renderScopeBadge(u)}</td>
+                    <td className="px-4 py-3 text-center text-slate-500 tabular-nums">
                       {new Date(u.createdAt).toLocaleDateString('vi-VN')}
                     </td>
                     <td className="px-4 py-3 text-center">
@@ -280,19 +296,21 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
                         <button
                           type="button"
                           onClick={() => handleOpenScopeModal(u)}
-                          className="bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/40 text-blue-300 px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer"
+                          className="inline-flex items-center gap-1 bg-[#EFF6FF] hover:bg-blue-100 border border-[#DBEAFE] text-[#1D4ED8] px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer"
                           title="Chỉnh sửa phạm vi phân quyền theo node"
                         >
-                          ⚙️ Phân quyền
+                          <Settings size={12} />
+                          <span>Phân quyền</span>
                         </button>
 
                         {u.username.toLowerCase() !== 'admin' && (
                           <button
                             type="button"
                             onClick={() => handleDeleteUser(u.id, u.username)}
-                            className="bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer"
+                            className="inline-flex items-center gap-1 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-700 px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer"
                           >
-                            Xóa
+                            <Trash2 size={12} />
+                            <span>Xóa</span>
                           </button>
                         )}
                       </div>
@@ -305,40 +323,41 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
         </div>
       )}
 
-      {/* Modal Tạo tài khoản mới kèm Phân quyền theo Node */}
+      {/* Modal Tạo tài khoản mới */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs">
-          <div className="bg-[#112240] rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-[#233554] text-slate-100 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-center border-b border-white/10 pb-3">
-              <h3 className="font-extrabold text-white text-base">
-                Tạo Tài Khoản & Cấp Quyền Theo Cây Node
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[2px]">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-slate-200 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-[#0F294A] text-base">
+                Tạo Tài Khoản &amp; Cấp Quyền Theo Cây Node
               </h3>
               <button
                 onClick={() => setIsModalOpen(false)}
-                className="text-slate-400 hover:text-white text-lg font-bold cursor-pointer"
+                aria-label="Đóng"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-[#0F294A] hover:bg-slate-100 cursor-pointer"
               >
-                ✕
+                <X size={17} />
               </button>
             </div>
 
             {formError && (
-              <div className="bg-rose-500/20 border border-rose-500/40 text-rose-300 p-3 rounded-xl text-xs flex items-center space-x-2">
-                <span>⚠️</span>
+              <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3 rounded-xl text-xs flex items-center gap-2">
+                <AlertTriangle size={15} className="text-rose-600 shrink-0" />
                 <span>{formError}</span>
               </div>
             )}
 
             {formSuccess && (
-              <div className="bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 p-3 rounded-xl text-xs flex items-center space-x-2">
-                <span>✓</span>
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-xl text-xs flex items-center gap-2">
+                <Check size={15} className="text-emerald-600 shrink-0" />
                 <span>{formSuccess}</span>
               </div>
             )}
 
             <form onSubmit={handleCreateUser} className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-[#0F294A] mb-1">
                     Tên đăng nhập (Username) *
                   </label>
                   <input
@@ -346,13 +365,13 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
                     required
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="ví dụ: sale_vudinhtrang"
-                    className="w-full text-xs border border-white/15 rounded-xl p-2.5 bg-[#0a192f] text-white focus:border-blue-500 outline-none"
+                    placeholder="ví dụ: sale_nguyenvana"
+                    className={inputCls}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-[#0F294A] mb-1">
                     Mật khẩu khởi tạo *
                   </label>
                   <input
@@ -361,34 +380,30 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Tối thiểu 6 ký tự"
-                    className="w-full text-xs border border-white/15 rounded-xl p-2.5 bg-[#0a192f] text-white focus:border-blue-500 outline-none"
+                    className={inputCls}
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-[#0F294A] mb-1">
                     Họ và tên nhân viên
                   </label>
                   <input
                     type="text"
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="ví dụ: Vũ Đình Thắng"
-                    className="w-full text-xs border border-white/15 rounded-xl p-2.5 bg-[#0a192f] text-white focus:border-blue-500 outline-none"
+                    placeholder="ví dụ: Nguyễn Văn A"
+                    className={inputCls}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-[#0F294A] mb-1">
                     Vai trò hệ thống
                   </label>
-                  <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value as any)}
-                    className="w-full text-xs border border-white/15 rounded-xl p-2.5 bg-[#0a192f] text-white focus:border-blue-500 outline-none"
-                  >
+                  <select value={role} onChange={(e) => setRole(e.target.value as any)} className={inputCls}>
                     <option value="user">Người dùng thông thường (User)</option>
                     <option value="admin">Quản trị viên (Admin - Toàn quyền)</option>
                   </select>
@@ -396,14 +411,14 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
               </div>
 
               {/* Scope Selection Box */}
-              <div className="bg-[#0a192f] border border-white/15 rounded-xl p-4 space-y-3">
-                <div className="font-bold text-xs text-blue-400 uppercase tracking-wide flex items-center gap-1.5">
-                  <span>🎯</span>
+              <div className="bg-[#F8FAFC] border border-[#DBEAFE] rounded-xl p-4 space-y-3">
+                <div className="font-bold text-xs text-[#1D4ED8] uppercase tracking-wide flex items-center gap-1.5">
+                  <Target size={14} />
                   <span>Phân Quyền Phạm Vi Dữ Liệu (Scope)</span>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
                     1. Cấp độ phân quyền
                   </label>
                   <select
@@ -412,26 +427,26 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
                       setScopeType(e.target.value);
                       setSelectedNodeId('');
                     }}
-                    className="w-full text-xs border border-white/15 rounded-xl p-2.5 bg-[#112240] text-white focus:border-blue-500 outline-none"
+                    className={inputCls}
                   >
-                    <option value="ALL">🌐 Toàn hệ thống (Toàn bộ các Miền & Chi nhánh)</option>
-                    <option value="REGION">🌐 Cấp Miền (Phó Tổng Miền - PTM)</option>
-                    <option value="BRANCH">🏛️ Cấp Chi nhánh (Giám đốc Chi nhánh - GĐCN)</option>
-                    <option value="DEPARTMENT">📑 Cấp Phòng ban (Trưởng phòng KD - TPKD)</option>
-                    <option value="EMPLOYEE_SUBTREE">👤 Cây con của Nhân sự cụ thể (Chuyên viên / CTV)</option>
+                    <option value="ALL">Toàn hệ thống (Toàn bộ các Miền &amp; Chi nhánh)</option>
+                    <option value="REGION">Cấp Miền (Phó Tổng Miền - PTM)</option>
+                    <option value="BRANCH">Cấp Chi nhánh (Giám đốc Chi nhánh - GĐCN)</option>
+                    <option value="DEPARTMENT">Cấp Phòng ban (Trưởng phòng KD - TPKD)</option>
+                    <option value="EMPLOYEE_SUBTREE">Cây con của Nhân sự cụ thể (Chuyên viên / CTV)</option>
                   </select>
                 </div>
 
                 {scopeType !== 'ALL' && (
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
                       2. Chọn Node cụ thể muốn gán quyền
                     </label>
                     <select
                       value={selectedNodeId}
                       onChange={(e) => setSelectedNodeId(e.target.value)}
                       required
-                      className="w-full text-xs border border-white/15 rounded-xl p-2.5 bg-[#112240] text-white focus:border-blue-500 outline-none"
+                      className={inputCls}
                     >
                       <option value="">-- Vui lòng chọn Node tương ứng --</option>
                       {getFilteredNodes(scopeType).map((node) => (
@@ -443,8 +458,7 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
                   </div>
                 )}
 
-                {/* Scope Preview Note */}
-                <div className="text-[11px] text-slate-400 bg-white/5 p-2.5 rounded-lg border border-white/5">
+                <div className="text-[11px] text-slate-600 bg-white p-2.5 rounded-lg border border-slate-200">
                   {scopeType === 'ALL' && (
                     <span>Tài khoản này sẽ xem được toàn bộ hợp đồng, doanh số và nhân sự trên toàn hệ thống.</span>
                   )}
@@ -463,19 +477,19 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
                 </div>
               </div>
 
-              <div className="flex justify-end space-x-2 pt-3 border-t border-white/10">
+              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="px-4 py-2 border border-white/15 rounded-xl text-xs font-semibold text-slate-300 hover:bg-white/5 cursor-pointer"
+                  className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
                 >
                   Hủy
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer"
+                  className="px-4 py-2 bg-[#1D4ED8] hover:bg-[#1E40AF] text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer"
                 >
-                  Lưu & Cấp tài khoản
+                  Lưu &amp; Cấp tài khoản
                 </button>
               </div>
             </form>
@@ -483,42 +497,43 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
         </div>
       )}
 
-      {/* Modal Chỉnh sửa nhanh Phân Quyền cho User hiện có */}
+      {/* Modal Chỉnh sửa nhanh Phân Quyền */}
       {isScopeModalOpen && scopeEditUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs">
-          <div className="bg-[#112240] rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-[#233554] text-slate-100">
-            <div className="flex justify-between items-center border-b border-white/10 pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4 backdrop-blur-[2px]">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-200">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <div>
-                <h3 className="font-extrabold text-white text-base">
-                  Cập Nhật Phân Quyền Theo Node
-                </h3>
-                <p className="text-xs text-blue-400 mt-0.5">
+                <h3 className="font-bold text-[#0F294A] text-base">Cập Nhật Phân Quyền Theo Node</h3>
+                <p className="text-xs text-[#1D4ED8] mt-0.5">
                   Tài khoản: <b>{scopeEditUser.username}</b> ({scopeEditUser.fullName})
                 </p>
               </div>
               <button
                 onClick={() => setIsScopeModalOpen(false)}
-                className="text-slate-400 hover:text-white text-lg font-bold cursor-pointer"
+                aria-label="Đóng"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-[#0F294A] hover:bg-slate-100 cursor-pointer"
               >
-                ✕
+                <X size={17} />
               </button>
             </div>
 
             {scopeModalError && (
-              <div className="bg-rose-500/20 border border-rose-500/40 text-rose-300 p-3 rounded-xl text-xs">
-                ⚠️ {scopeModalError}
+              <div className="bg-rose-50 border border-rose-200 text-rose-800 p-3 rounded-xl text-xs flex items-center gap-2">
+                <AlertTriangle size={14} className="shrink-0" />
+                <span>{scopeModalError}</span>
               </div>
             )}
 
             {scopeModalSuccess && (
-              <div className="bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 p-3 rounded-xl text-xs">
-                ✓ {scopeModalSuccess}
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3 rounded-xl text-xs flex items-center gap-2">
+                <Check size={14} className="shrink-0" />
+                <span>{scopeModalSuccess}</span>
               </div>
             )}
 
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1">
+                <label className="block text-xs font-semibold text-[#0F294A] mb-1">
                   1. Cấp độ phạm vi phân quyền
                 </label>
                 <select
@@ -527,25 +542,25 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
                     setEditScopeType(e.target.value);
                     setEditSelectedNodeId('');
                   }}
-                  className="w-full text-xs border border-white/15 rounded-xl p-2.5 bg-[#0a192f] text-white focus:border-blue-500 outline-none"
+                  className={inputCls}
                 >
-                  <option value="ALL">🌐 Toàn hệ thống (Toàn bộ các Miền & Chi nhánh)</option>
-                  <option value="REGION">🌐 Cấp Miền (Phó Tổng Miền - PTM)</option>
-                  <option value="BRANCH">🏛️ Cấp Chi nhánh (Giám đốc Chi nhánh - GĐCN)</option>
-                  <option value="DEPARTMENT">📑 Cấp Phòng ban (Trưởng phòng KD - TPKD)</option>
-                  <option value="EMPLOYEE_SUBTREE">👤 Cây con của Nhân sự cụ thể (Chuyên viên / CTV)</option>
+                  <option value="ALL">Toàn hệ thống (Toàn bộ các Miền &amp; Chi nhánh)</option>
+                  <option value="REGION">Cấp Miền (Phó Tổng Miền - PTM)</option>
+                  <option value="BRANCH">Cấp Chi nhánh (Giám đốc Chi nhánh - GĐCN)</option>
+                  <option value="DEPARTMENT">Cấp Phòng ban (Trưởng phòng KD - TPKD)</option>
+                  <option value="EMPLOYEE_SUBTREE">Cây con của Nhân sự cụ thể (Chuyên viên / CTV)</option>
                 </select>
               </div>
 
               {editScopeType !== 'ALL' && (
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
+                  <label className="block text-xs font-semibold text-[#0F294A] mb-1">
                     2. Chọn Node cụ thể muốn gán quyền
                   </label>
                   <select
                     value={editSelectedNodeId}
                     onChange={(e) => setEditSelectedNodeId(e.target.value)}
-                    className="w-full text-xs border border-white/15 rounded-xl p-2.5 bg-[#0a192f] text-white focus:border-blue-500 outline-none"
+                    className={inputCls}
                   >
                     <option value="">-- Vui lòng chọn Node tương ứng --</option>
                     {getFilteredNodes(editScopeType).map((node) => (
@@ -558,18 +573,18 @@ export const UserManagement: React.FC<Props> = ({ branches }) => {
               )}
             </div>
 
-            <div className="flex justify-end space-x-2 pt-4 border-t border-white/10">
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
               <button
                 type="button"
                 onClick={() => setIsScopeModalOpen(false)}
-                className="px-4 py-2 border border-white/15 rounded-xl text-xs font-semibold text-slate-300 hover:bg-white/5 cursor-pointer"
+                className="px-4 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-50 cursor-pointer"
               >
                 Hủy
               </button>
               <button
                 type="button"
                 onClick={handleSaveScope}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-md cursor-pointer"
+                className="px-4 py-2 bg-[#1D4ED8] hover:bg-[#1E40AF] text-white rounded-xl text-xs font-semibold shadow-xs cursor-pointer"
               >
                 Lưu Thay Đổi
               </button>

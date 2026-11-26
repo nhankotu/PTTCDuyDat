@@ -1,6 +1,14 @@
 import React from 'react';
 import {
-  BadgeDollarSign, Landmark, UserPlus, Users, FileText, BarChart3, Target, ArrowUpRight, Lock
+  BadgeDollarSign,
+  Landmark,
+  UserPlus,
+  Users,
+  FileText,
+  BarChart3,
+  Target,
+  ArrowUpRight,
+  Lock,
 } from 'lucide-react';
 import { KpiReportResponse } from '../types/v1';
 
@@ -43,13 +51,13 @@ export const KpiCardsV1: React.FC<Props> = ({
         {[...Array(7)].map((_, i) => (
           <div
             key={i}
-            className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs animate-pulse flex items-center justify-between gap-3"
+            className="bg-white rounded-xl p-4 border border-slate-200/80 animate-pulse flex items-center justify-between gap-3"
           >
             <div className="space-y-2.5 flex-1">
               <div className="h-3.5 bg-slate-200 rounded w-1/2" />
               <div className="h-7 bg-slate-200 rounded w-4/5" />
             </div>
-            <div className="h-11 w-11 bg-slate-200 rounded-xl shrink-0" />
+            <div className="h-10 w-10 bg-slate-200 rounded-xl shrink-0" />
           </div>
         ))}
       </div>
@@ -63,21 +71,16 @@ export const KpiCardsV1: React.FC<Props> = ({
     {
       id: 1,
       title: '1. Doanh số trong kỳ',
-      tooltip: earlyLiquidationMaxDays > 0
-        ? `Tổng giá trị HĐ phát sinh theo ngày ký (đã loại HĐ thanh lý sớm <= ${earlyLiquidationMaxDays} ngày). Bấm để xem chi tiết.`
-        : 'Tổng giá trị HĐ phát sinh theo ngày ký. Bấm để xem chi tiết.',
+      tooltip:
+        earlyLiquidationMaxDays > 0
+          ? `Tổng giá trị HĐ phát sinh theo ngày ký (đã loại HĐ thanh lý sớm <= ${earlyLiquidationMaxDays} ngày). Bấm để xem chi tiết.`
+          : 'Tổng giá trị HĐ phát sinh theo ngày ký. Bấm để xem chi tiết.',
       value: formatMoney(metrics?.totalSales, access.revenue),
       raw: metrics?.totalSales,
       pill: earlyLiquidationMaxDays > 0 ? `Loại <= ${earlyLiquidationMaxDays}d` : null,
       hasAccess: access.revenue,
       Icon: BadgeDollarSign,
-      theme: {
-        border: 'border-blue-200/80 hover:border-blue-400',
-        topStripe: 'from-blue-500 to-indigo-600',
-        pill: 'bg-blue-50 text-blue-700 border-blue-200',
-        iconBg: 'bg-blue-100/80 text-blue-700',
-        valueColor: 'text-slate-900',
-      },
+      featured: true,
     },
     {
       id: 2,
@@ -88,13 +91,7 @@ export const KpiCardsV1: React.FC<Props> = ({
       pill: null,
       hasAccess: access.balance,
       Icon: Landmark,
-      theme: {
-        border: 'border-emerald-200/80 hover:border-emerald-400',
-        topStripe: 'from-emerald-500 to-teal-600',
-        pill: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-        iconBg: 'bg-emerald-100/80 text-emerald-700',
-        valueColor: 'text-emerald-950',
-      },
+      featured: true,
     },
     {
       id: 3,
@@ -102,22 +99,23 @@ export const KpiCardsV1: React.FC<Props> = ({
       tooltip: excludeSafeNewCust
         ? 'Khách hàng mới ngoài sản phẩm Safe, giá trị >= 1Tr lần đầu trong kỳ.'
         : 'Khách hàng phát sinh hợp đồng trong kỳ.',
-      value: formatCount(excludeSafeNewCust ? (metrics?.newCustomers ?? metrics?.totalCustomers) : metrics?.totalCustomers, access.revenue),
-      raw: (excludeSafeNewCust ? (metrics?.newCustomers ?? metrics?.totalCustomers) : metrics?.totalCustomers)?.toString(),
-      pill: !excludeSafeNewCust && metrics?.newCustomers != null
-        ? `Mới: ${metrics.newCustomers.toLocaleString('vi-VN')}`
-        : excludeSafeNewCust && metrics?.totalCustomers != null
-        ? `Tổng kỳ: ${metrics.totalCustomers.toLocaleString('vi-VN')}`
-        : null,
+      value: formatCount(
+        excludeSafeNewCust ? metrics?.newCustomers ?? metrics?.totalCustomers : metrics?.totalCustomers,
+        access.revenue
+      ),
+      raw: (excludeSafeNewCust
+        ? metrics?.newCustomers ?? metrics?.totalCustomers
+        : metrics?.totalCustomers
+      )?.toString(),
+      pill:
+        !excludeSafeNewCust && metrics?.newCustomers != null
+          ? `Mới: ${metrics.newCustomers.toLocaleString('vi-VN')}`
+          : excludeSafeNewCust && metrics?.totalCustomers != null
+          ? `Tổng kỳ: ${metrics.totalCustomers.toLocaleString('vi-VN')}`
+          : null,
       hasAccess: access.revenue,
       Icon: UserPlus,
-      theme: {
-        border: 'border-purple-200/80 hover:border-purple-400',
-        topStripe: 'from-purple-500 to-indigo-600',
-        pill: 'bg-purple-50 text-purple-700 border-purple-200',
-        iconBg: 'bg-purple-100/80 text-purple-700',
-        valueColor: 'text-purple-950',
-      },
+      featured: false,
     },
     {
       id: 4,
@@ -128,13 +126,7 @@ export const KpiCardsV1: React.FC<Props> = ({
       pill: null,
       hasAccess: access.balance,
       Icon: Users,
-      theme: {
-        border: 'border-teal-200/80 hover:border-teal-400',
-        topStripe: 'from-teal-500 to-emerald-600',
-        pill: 'bg-teal-50 text-teal-700 border-teal-200',
-        iconBg: 'bg-teal-100/80 text-teal-700',
-        valueColor: 'text-teal-950',
-      },
+      featured: false,
     },
     {
       id: 5,
@@ -145,13 +137,7 @@ export const KpiCardsV1: React.FC<Props> = ({
       pill: null,
       hasAccess: access.revenue,
       Icon: FileText,
-      theme: {
-        border: 'border-amber-200/80 hover:border-amber-400',
-        topStripe: 'from-amber-500 to-orange-500',
-        pill: 'bg-amber-50 text-amber-800 border-amber-200',
-        iconBg: 'bg-amber-100/80 text-amber-700',
-        valueColor: 'text-amber-950',
-      },
+      featured: false,
     },
     {
       id: 6,
@@ -162,13 +148,7 @@ export const KpiCardsV1: React.FC<Props> = ({
       pill: null,
       hasAccess: access.revenue,
       Icon: BarChart3,
-      theme: {
-        border: 'border-cyan-200/80 hover:border-cyan-400',
-        topStripe: 'from-cyan-500 to-blue-500',
-        pill: 'bg-cyan-50 text-cyan-700 border-cyan-200',
-        iconBg: 'bg-cyan-100/80 text-cyan-700',
-        valueColor: 'text-slate-900',
-      },
+      featured: false,
     },
     {
       id: 7,
@@ -179,36 +159,30 @@ export const KpiCardsV1: React.FC<Props> = ({
       pill: null,
       hasAccess: access.revenue,
       Icon: Target,
-      theme: {
-        border: 'border-rose-200/80 hover:border-rose-400',
-        topStripe: 'from-rose-500 to-pink-600',
-        pill: 'bg-rose-50 text-rose-700 border-rose-200',
-        iconBg: 'bg-rose-100/80 text-rose-700',
-        valueColor: 'text-slate-900',
-      },
+      featured: false,
     },
   ];
 
   return (
     <div className="mb-5 space-y-3">
       {access.scopesDiffer && (
-        <div className="bg-amber-50/90 border border-amber-200 px-3.5 py-2.5 rounded-xl text-xs text-amber-900 flex items-center justify-between shadow-xs">
+        <div className="bg-amber-50 border border-amber-200 px-3.5 py-2.5 rounded-xl text-xs text-amber-900 flex items-center justify-between gap-2">
           <span className="font-medium">
             <strong>Khác phạm vi:</strong> Phạm vi Doanh số và Số dư khác nhau theo quyền ngang hàng.
           </span>
-          <span className="text-[11px] bg-amber-200/80 px-2 py-0.5 rounded-md font-bold shrink-0">
+          <span className="text-[11px] bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-md font-semibold shrink-0">
             KHÁC PHẠM VI
           </span>
         </div>
       )}
 
       {kpiData?.dataStatus === 'UNAVAILABLE' && (
-        <div className="bg-rose-50 border border-rose-200 px-3.5 py-2.5 rounded-xl text-xs text-rose-800 font-medium shadow-xs">
+        <div className="bg-rose-50 border border-rose-200 px-3.5 py-2.5 rounded-xl text-xs text-rose-800 font-medium">
           Tài khoản chưa được cấp quyền truy cập dữ liệu trong kỳ báo cáo này.
         </div>
       )}
 
-      {/* Minimalist Data-First KPI Cards Grid */}
+      {/* Clean Institutional Blue & White KPI Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
         {cards.map((c) => {
           const IconComp = c.Icon;
@@ -218,28 +192,35 @@ export const KpiCardsV1: React.FC<Props> = ({
               title={c.tooltip}
               role={onOpenDetails && c.hasAccess ? 'button' : undefined}
               tabIndex={onOpenDetails && c.hasAccess ? 0 : undefined}
-              onClick={() => { if (c.hasAccess) onOpenDetails?.(c.id === 2 || c.id === 4 ? 'balance' : 'sales'); }}
+              onClick={() => {
+                if (c.hasAccess) onOpenDetails?.(c.id === 2 || c.id === 4 ? 'balance' : 'sales');
+              }}
               onKeyDown={(e) => {
                 if ((e.key === 'Enter' || e.key === ' ') && c.hasAccess) {
                   e.preventDefault();
                   onOpenDetails?.(c.id === 2 || c.id === 4 ? 'balance' : 'sales');
                 }
               }}
-              className={`group relative bg-white rounded-2xl border ${c.theme.border} px-4 py-4 shadow-xs hover:shadow-md transition-all duration-150 hover:-translate-y-0.5 focus-visible:outline-2 focus-visible:outline-blue-600 cursor-pointer overflow-hidden`}
+              className={`group relative bg-white rounded-xl border px-4 py-4 transition-all duration-150 cursor-pointer overflow-hidden ${
+                c.featured
+                  ? 'border-[#BFDBFE] hover:border-[#1D4ED8] shadow-xs hover:shadow-md'
+                  : 'border-slate-200/90 hover:border-[#BFDBFE] hover:shadow-sm'
+              }`}
             >
-              <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${c.theme.topStripe}`} />
-
-              <div className="flex items-center justify-between gap-3">
+              <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-bold text-slate-500 truncate">{c.title}</span>
+                    <span className="text-xs font-semibold text-slate-500 truncate">{c.title}</span>
                     {onOpenDetails && c.hasAccess && (
-                      <ArrowUpRight size={13} className="text-slate-300 group-hover:text-blue-600 transition shrink-0" />
+                      <ArrowUpRight
+                        size={13}
+                        className="text-slate-300 group-hover:text-[#1D4ED8] transition-colors shrink-0"
+                      />
                     )}
                   </div>
 
                   <div
-                    className={`text-xl xl:text-[23px] font-black ${c.theme.valueColor} tracking-tight truncate tabular-nums leading-tight mt-1.5`}
+                    className="text-xl xl:text-[22px] font-extrabold text-[#0F294A] tracking-tight truncate tabular-nums leading-tight mt-1.5"
                     title={c.raw ?? c.value}
                   >
                     {!c.hasAccess ? (
@@ -252,14 +233,20 @@ export const KpiCardsV1: React.FC<Props> = ({
                   </div>
 
                   {c.hasAccess && c.pill && (
-                    <span className={`inline-block mt-1.5 px-2 py-0.5 rounded-md text-[11px] font-bold border ${c.theme.pill}`}>
+                    <span className="inline-block mt-1.5 px-2 py-0.5 rounded-md text-[11px] font-semibold border bg-[#EFF6FF] text-[#1D4ED8] border-[#DBEAFE] tabular-nums">
                       {c.pill}
                     </span>
                   )}
                 </div>
 
-                <div className={`w-11 h-11 rounded-xl ${c.theme.iconBg} flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform`}>
-                  <IconComp size={22} strokeWidth={2.2} />
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+                    c.featured
+                      ? 'bg-[#1D4ED8] text-white'
+                      : 'bg-[#EFF6FF] text-[#1D4ED8] group-hover:bg-[#1D4ED8] group-hover:text-white'
+                  }`}
+                >
+                  <IconComp size={20} strokeWidth={1.85} />
                 </div>
               </div>
             </div>

@@ -12,11 +12,11 @@ interface Props {
 type MultiSourceType = 'EMPLOYEE' | 'APPENDIX' | 'SETTLEMENT' | 'STOCK' | 'EXCEPTION';
 
 const PREFIX_MAP: Record<string, { sourceType: MultiSourceType; label: string; order: number; badge: string }> = {
-  NS: { sourceType: 'EMPLOYEE', label: 'Nhân sự (NS)', order: 1, badge: 'bg-purple-50 text-purple-700 border-purple-200' },
-  PL: { sourceType: 'APPENDIX', label: 'Phụ lục (PL)', order: 2, badge: 'bg-blue-50 text-blue-700 border-blue-200' },
+  NS: { sourceType: 'EMPLOYEE', label: 'Nhân sự (NS)', order: 1, badge: 'bg-[#EFF6FF] text-[#1E3A8A] border-[#BFDBFE]' },
+  PL: { sourceType: 'APPENDIX', label: 'Phụ lục (PL)', order: 2, badge: 'bg-[#EFF6FF] text-[#1D4ED8] border-[#DBEAFE]' },
   TT: { sourceType: 'SETTLEMENT', label: 'Tất toán (TT)', order: 3, badge: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
   CK: { sourceType: 'STOCK', label: 'Chứng khoán (CK)', order: 4, badge: 'bg-amber-50 text-amber-800 border-amber-200' },
-  NL: { sourceType: 'EXCEPTION', label: 'Ngoại lệ (NL)', order: 5, badge: 'bg-cyan-50 text-cyan-800 border-cyan-200' },
+  NL: { sourceType: 'EXCEPTION', label: 'Ngoại lệ (NL)', order: 5, badge: 'bg-sky-50 text-sky-800 border-sky-200' },
 };
 
 interface QueuedFile {
